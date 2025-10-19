@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button, ButtonText } from "@/components/ui/button";
 import { supabase } from "@/utils/supabase";
 import { Select } from "@/components/ui/select";
+import { Box } from "@/components/ui/box";
 
 const completeProfile = () => {
   const [code, setCode] = useState("");
@@ -34,57 +35,51 @@ const completeProfile = () => {
     }
   }
 
+  const saveData = async () => {
+    console.log(name);
+  }
+
     return (
-    <View className="flex justify-center items-center p-4">
-        <Text>Configuración de nuevo Usuario</Text>
+    <View className="flex-1 bg-gray-50">
 
-        {!isValidated && (
-            <UIFormControl
-                isRequired
-                isInvalid={isInvalid}
-            >
-                <Input>
-                <InputField
-                    value={code}
-                    onChangeText={setCode}
-                    // onBlur={() => setTouched(true)}
-                    placeholder="Codigo de empresa"
-                />
-                </Input>
-                <Button onPress={validateCode}>
-                    <ButtonText>Validar codigo de empresa</ButtonText>
-                </Button>
+    <View className="flex-1 items-center justify-center bg-gray-50">
+      <Box className="w-[90%] max-w-md bg-white p-6 rounded-2xl shadow-lg">
+        <Text className="text-xl font-bold text-center mb-4">
+          Configuración de nuevo Usuario
+        </Text>
 
-            </UIFormControl>
+        {!isValidated ? (
+          <UIFormControl isRequired isInvalid={isInvalid} className="mb-4">
+            <Input>
+              <InputField
+                value={code}
+                onChangeText={setCode}
+                placeholder="Código de empresa"
+              />
+            </Input>
+            <Button onPress={validateCode} className="mt-3">
+              <ButtonText>Validar código de empresa</ButtonText>
+            </Button>
+          </UIFormControl>
+        ) : (
+          <UIFormControl isRequired isInvalid={isInvalid} className="space-y-4">
+            <Input>
+              <InputField
+                value={name}
+                onChangeText={setName}
+                placeholder="Nombre"
+              />
+            </Input>
+
+            <Button onPress={saveData}>
+              <ButtonText>Guardar</ButtonText>
+            </Button>
+          </UIFormControl>
         )}
-        {isValidated && (
-            <View className="flex justify-center items-center p-4">
-                <UIFormControl
-                    isRequired
-                    isInvalid={isInvalid}
-                >
-                    <Input>
-                        <InputField
-                            value={name}
-                            onChangeText={setName}
-                            // onBlur={() => setTouched(true)}
-                            placeholder="Nombre"
-                        />
-                    </Input>
+      </Box>
+    </View>
+    </View>
 
-                    <Select
-
-                    >
-
-                    </Select>
-
-                    <Button onPress={validateCode}>
-                        <ButtonText>Guardar</ButtonText>
-                    </Button>
-                </UIFormControl>
-            </View>
-        )}
-        </View>
     )
 }
 

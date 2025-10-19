@@ -46,7 +46,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
     useCallback(() => {
       if (!loading) {
         if (!session?.user) router.replace("/auth/login");
-        // else if (!employee) router.replace("/auth/signin");
+        // else if (!employee) router.replace("/auth/completeProfile");
       }
     }, [loading, session?.user, employee])
   );

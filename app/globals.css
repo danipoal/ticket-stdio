@@ -4,7 +4,40 @@
 
 body {
   font-family: Arial, Helvetica, sans-serif;
+  /* display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f9fafb;  */
 }
+
+html, body, #root, #__next {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+}
+
+/* Asegura que el primer wrapper generado por React Native Web
+   (p.ej. <div class="css-view-...">) no limite la altura */
+#root > div, 
+#__next > div {
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* En algunas builds, SafeAreaProvider genera un wrapper interno extra. Aseguramos también su expansión. */
+#root > div > div,
+#__next > div > div {
+  min-height: 100vh;
+}
+
+/* Centrado robusto para el layout de auth en web */
+div#auth-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+
 
 @layer utilities {
   .text-balance {
