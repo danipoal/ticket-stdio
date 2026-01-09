@@ -14,12 +14,22 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
 
-type Employee = {
+export type Organization = {
   id: string;
   name: string;
-  is_admin: boolean;
-  id_organization: string;
-  id_user: string;
+  VAT_number: string;
+  street: string;
+  city: string;
+  country: string;
+  // otros campos que tengas
+};
+
+export type Employee = {
+  id: string | null;
+  name: string | null;
+  is_admin: boolean | null;
+  id_organization: string | null;
+  id_user: string | null;
 };
 
 type AuthContextType = {

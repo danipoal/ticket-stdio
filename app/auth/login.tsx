@@ -10,11 +10,14 @@ import {
 import { useForm, Controller } from "react-hook-form";
 import { useRouter } from "expo-router";
 import { login } from "@/utils/supabase";
+import { Toast, ToastDescription, ToastTitle, useToast } from "@gluestack-ui/themed";
+
 
 
 const Login = () => {
 
   const router = useRouter();
+  const toast = useToast();
 
   const {
     control,
@@ -31,6 +34,20 @@ const Login = () => {
     emailValid: true,
     passwordValid: true,
   });
+  const showLoginErrorToast = (message = "") => {
+  toast.show({
+    placement: "top",
+    duration: 3000,
+    render: ({ id }) => {
+      return (
+        <Toast nativeID={id} action="error" variant="solid">
+          <ToastTitle>Credenciales Incorrectas</ToastTitle>
+          <ToastDescription>{message}</ToastDescription>
+        </Toast>
+      );
+    },
+  });
+};
 
   const validateEmail = (email: string) => {
     // Validación básica de email
@@ -72,7 +89,8 @@ const Login = () => {
     if (!result) {
     //   setValidated({ emailValid: false, passwordValid: true });
     //   setError("email", { type: "manual", message: "Email not found" });
-      console.log("ERROR in login")
+      console.log("ERROR in login");
+      showLoginErrorToast();
       return;
     }
 
