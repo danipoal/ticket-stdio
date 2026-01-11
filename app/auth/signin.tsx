@@ -171,7 +171,7 @@ const Signin = () => {
         onPress={handleSubmit(onSubmit)}
         activeOpacity={0.8}
       >
-        <Text style={styles.buttonText}>Log in</Text>
+        <Text style={styles.buttonText}>Crear cuenta</Text>
       </TouchableOpacity>
 
     {/* <Box flex={1} justifyContent="center" alignItems="center" bg="$backgroundLight0" p="$4">

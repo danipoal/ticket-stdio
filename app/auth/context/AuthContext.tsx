@@ -37,6 +37,8 @@ type AuthContextType = {
   user: Session["user"] | null;
   employee: Employee | null;
   loading: boolean;
+  fetchEmployee: () => Promise<any>;
+  setEmployee: (e: Employee | null) => void;
 };
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,7 +72,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      fetchEmployee(session?.user);
+      fetchEmployee();
       setLoading(false);
     });
 
@@ -113,12 +115,12 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   }
 
-  const fetchEmployee = async (user: User | undefined) => {
-    if (user) {
+  const fetchEmployee = async () => {
+    if (session?.user) {
       const { data, error } = await supabase
         .from("employees")
         .select("*")
-        .eq("id_user", user.id)
+        .eq("id_user", session.user.id)
         .single();
 
       if (error) {
@@ -127,6 +129,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       setEmployee(data);
+      return data;
     }
   };
 
@@ -140,7 +143,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, employee: employee ?? null, loading }}
+      value={{ session, user: session?.user ?? null, employee: employee ?? null, loading, fetchEmployee, setEmployee }}
     >
       {children}
     </AuthContext.Provider>

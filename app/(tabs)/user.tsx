@@ -3,11 +3,23 @@ import useAuth from "../auth/context/useAuth"
 import { Button, ButtonText } from "@/components/ui/button";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "@/utils/supabase";
+import { useEffect } from "react";
+
 
 
 export default function UserScreen() {
-  const { employee, user } = useAuth();
-  if (!employee) return <Text>Cargando...</Text>;
+  const { employee, user, fetchEmployee, loading } = useAuth();
+
+  useEffect(() => {
+    if (!employee && user) {
+      fetchEmployee();
+    }
+  }, [employee, user]);
+
+  if (loading || !employee) {
+    return <Text>Cargando...</Text>;
+  }
 
   const logOut = () => {
     console.log("Log Out");

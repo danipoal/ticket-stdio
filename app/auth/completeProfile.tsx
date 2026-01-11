@@ -47,31 +47,36 @@ const completeProfile = () => {
     console.log(user);
 
     if(user && organization && name) {
-      setEmployeeToCreate(prev => ({
+      setEmployeeToCreate(prev => ({ // Por si lo necesito despues
         ...prev,
         name: name,
         id_organization: organization.id,
         id_user: user.id,
         is_admin: false,
       }));  
-      const insertedEmployee = await submitEmployee();
+      const employee: Partial<Employee> = {
+        name,
+        id_organization: organization.id,
+        id_user: user.id,
+        is_admin: false,
+      };
+      const insertedEmployee = await submitEmployee(employee);
       if (insertedEmployee) 
         router.replace("/auth/login");
-      
     } else {
       console.error("Falta algun dato")
     }
 }
 
-  const submitEmployee = async () => {
+  const submitEmployee = async (employee: Partial<Employee>) => {
     
     const { data, error } = await supabase
       .from('employees')
       .insert([
         // { some_column: 'someValue', other_column: 'otherValue' },
-        employeeToCreate
+        employee
       ])
-      .select()
+      .select().single();
     
       if (error) {
         console.error(error.message);
@@ -133,9 +138,6 @@ const completeProfile = () => {
           )}
         </Box>
       </View>
-      <Toast >
-        Error
-      </Toast>
     </View>
 
     )

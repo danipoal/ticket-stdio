@@ -115,7 +115,7 @@ const Login = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Log in</Text>
+      <Text style={styles.title}>Inicio sesión</Text>
 
       <View style={styles.formControl}>
         <Text>Email</Text>
@@ -129,7 +129,7 @@ const Login = () => {
                 styles.input,
                 errors.email ? styles.inputError : undefined,
               ]}
-              placeholder="Enter email"
+              placeholder="Introduce Email"
               onBlur={onBlur}
               onChangeText={onChange}
               value={value}
@@ -149,7 +149,7 @@ const Login = () => {
       </View>
 
       <View style={styles.formControl}>
-        <Text>Password</Text>
+        <Text>Contraseña</Text>
         <Controller
           control={control}
           name="password"
@@ -162,7 +162,7 @@ const Login = () => {
                   styles.passwordInput,
                   errors.password ? styles.inputError : undefined,
                 ]}
-                placeholder="Enter password"
+                placeholder="Introduce contraseña"
                 onBlur={onBlur}
                 onChangeText={onChange}
                 value={value}
@@ -193,7 +193,7 @@ const Login = () => {
         onPress={handleSubmit(onSubmit)}
         activeOpacity={0.8}
       >
-        <Text style={styles.buttonText}>Log in</Text>
+        <Text style={styles.buttonText}>Entrar</Text>
       </TouchableOpacity>
 
       <Text onPress={redirectSignIn}>
