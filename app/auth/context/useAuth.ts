@@ -9,3 +9,5 @@ const useAuth = () => {
 };
 
 export default useAuth;
+
+// Hay que hacer que en el login se setee el employee justo despues de recibir el user

@@ -11,6 +11,7 @@ import { useForm, Controller } from "react-hook-form";
 import { useRouter } from "expo-router";
 import { login } from "@/utils/supabase";
 import { Toast, ToastDescription, ToastTitle, useToast } from "@gluestack-ui/themed";
+import useAuth from "./context/useAuth";
 
 
 
@@ -18,6 +19,7 @@ const Login = () => {
 
   const router = useRouter();
   const toast = useToast();
+  const { fetchEmployee } = useAuth();
 
   const {
     control,
@@ -99,7 +101,7 @@ const Login = () => {
     //   setError("password", { type: "manual", message: "Password incorrect" });
     //   return;
     // }
-
+    fetchEmployee();
     router.push("/(tabs)/home");
     console.log("Logged in successfully!");
     reset();

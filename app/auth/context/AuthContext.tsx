@@ -129,6 +129,8 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       setEmployee(data);
+      await AsyncStorage.setItem("employee", JSON.stringify(data));
+      
       return data;
     }
   };
