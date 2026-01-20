@@ -1,26 +1,18 @@
-import { Box, Text, VStack, Heading, Center, ScrollView } from "@gluestack-ui/themed";
+import { Box, Text, VStack, Heading, ScrollView, HStack } from "@gluestack-ui/themed";
+import AddButton from "@/components/custom/AddButton";
+import SheetCard from "@/components/custom/SheetCard";
+import CreateSheetView from "@/components/custom/CreateSheetView";
 import useAuth from "../auth/context/useAuth";
 import { supabase } from "@/utils/supabase";
 import { useEffect, useState } from "react";
-
-
-export type ExpenseSheet = {
-  id: number;
-  title: string;
-  description: string;
-  project: string;
-  total_amount: string;
-  create_date: string;
-  approval_date: string;
-  id_user: string;
-  id_status: string;
-};
+import { ExpenseSheet } from "@/constants/types";
+import { SheetStatusID } from "@/constants/constants";
 
 export default function TicketsScreen() {
   const { employee } = useAuth();
   const [sheets, setSheets] = useState<ExpenseSheet[]>([]);
   const [loading, setLoading] = useState(true);
-  // const [loadedSheets, setLoadedSheets] = useState(false);
+  const [createSheetView, setCreateSheetView] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
 
@@ -35,7 +27,7 @@ export default function TicketsScreen() {
       setError(null);
 
       const { data, error } = await supabase
-        .from("Expense_sheet")
+        .from("expense_sheet_with_total")
         .select("*")
         .eq("id_user", employee.id);
 
@@ -44,10 +36,10 @@ export default function TicketsScreen() {
         setSheets([]);
       } else {
         setSheets(data ?? []);
+        console.log(data);
       }
 
       setLoading(false);
-      // setLoadedSheets(true);
     };
 
     fetchExpenseSheets();
@@ -55,11 +47,26 @@ export default function TicketsScreen() {
 
   return (
   <Box flex={1} bg="$backgroundLight50">
-    <Center flex={1}>
-      <VStack w="100%" px={4} space="md" alignItems="stretch">
-        <Heading size="xl" textAlign="center">
-          Mis Tickets
-        </Heading>
+    <Box flex={1} w="$full">
+      <VStack flex={1} w="$full" px={4} space="md" alignItems="stretch">
+        <HStack alignItems="center" justifyContent="space-between" my={2}>          
+          <Heading flex={1} size="xl" textAlign="center">
+            Mis Tickets
+          </Heading>
+          <AddButton onPress={() => setCreateSheetView(true)} />
+
+          {/* Placeholder para mantener el título centrado */}
+          {/* <Box w={40} h={40} /> */}
+        </HStack>
+        {createSheetView && (
+          <CreateSheetView
+            onClose={() => setCreateSheetView(false)}
+            onCreate={(values) => {
+              console.log("Crear hoja con:", values);
+              setCreateSheetView(false);
+            }}
+          />
+        )}
 
         {loading && (
           <Text textAlign="center">Cargando tickets...</Text>
@@ -77,52 +84,27 @@ export default function TicketsScreen() {
           </Text>
         )}
 
-        {!loading &&
-          !error &&
-          sheets.map((sheet) => (
-            <Box
-              key={sheet.id}
-              w="100%"
-              maxWidth="90%"
-              alignSelf="center"
-              bg="$white"
-              p={4}
-              borderRadius="$lg"
-              borderWidth={1}
-              borderColor="$coolGray200"
-            >
-              <VStack space="sm">
-                <Heading size="sm">{sheet.title}</Heading>
-
-                {sheet.description && (
-                  <Text color="$coolGray600">
-                    {sheet.description}
-                  </Text>
-                )}
-
-                <Text>
-                  Proyecto:{" "}
-                  <Text fontWeight="$bold">
-                    {sheet.project}
-                  </Text>
-                </Text>
-
-                <Text>
-                  Total:{" "}
-                  <Text fontWeight="$bold">
-                    {sheet.total_amount} €
-                  </Text>
-                </Text>
-
-                <Text fontSize="$sm" color="$coolGray500">
-                  Creado:{" "}
-                  {new Date(sheet.create_date).toLocaleDateString()}
-                </Text>
-              </VStack>
-            </Box>
-          ))}
+        {!loading && !error && (
+          <ScrollView
+            flex={1}
+            w="$full"
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 96 }}
+            showsVerticalScrollIndicator
+          >
+            {sheets.map((sheet) => (
+              <SheetCard
+                key={sheet.id}
+                sheet={sheet}
+                onPress={() => {
+                  // TODO: Navegar a detalle del ticket
+                  console.log("Abrir hoja", sheet.id);
+                }}
+              />
+            ))}
+          </ScrollView>
+        )}
       </VStack>
-    </Center>
+    </Box>
   </Box>
   );
 

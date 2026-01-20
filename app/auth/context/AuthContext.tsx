@@ -11,41 +11,23 @@ import type { Session, User } from "@supabase/supabase-js";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Spinner } from '@/components/ui/spinner/index';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { EmployeePlain } from "@/constants/types";
 
-
-
-export type Organization = {
-  id: string;
-  name: string;
-  VAT_number: string;
-  street: string;
-  city: string;
-  country: string;
-  // otros campos que tengas
-};
-
-export type Employee = {
-  id: string | null;
-  name: string | null;
-  is_admin: boolean | null;
-  id_organization: string | null;
-  id_user: string | null;
-};
 
 type AuthContextType = {
   session: Session | null;
   user: Session["user"] | null;
-  employee: Employee | null;
+  employee: EmployeePlain | null;
   loading: boolean;
   fetchEmployee: () => Promise<any>;
-  setEmployee: (e: Employee | null) => void;
+  setEmployee: (e: EmployeePlain | null) => void;
 };
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [employee, setEmployee] = useState<Employee | null>();
+  const [employee, setEmployee] = useState<EmployeePlain | null>();
   
   const [loading, setLoading] = useState(true);
   const router = useRouter();
