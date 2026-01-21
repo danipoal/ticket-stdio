@@ -1,11 +1,11 @@
 export type ExpenseSheetPlain = {
-  id: number;
+  id?: number;
   title: string;
   description: string;
   project: string;
-  total_amount: string;
-  create_date: string;
-  approval_date: string;
+  total_amount?: string;
+  create_date?: string | null;
+  approval_date: string | null;
   id_user: string;
   id_status: string;
 };

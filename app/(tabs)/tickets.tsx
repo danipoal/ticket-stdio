@@ -5,7 +5,7 @@ import CreateSheetView from "@/components/custom/CreateSheetView";
 import useAuth from "../auth/context/useAuth";
 import { supabase } from "@/utils/supabase";
 import { useEffect, useState } from "react";
-import { ExpenseSheet } from "@/constants/types";
+import { ExpenseSheet, ExpenseSheetPlain } from "@/constants/types";
 import { SheetStatusID } from "@/constants/constants";
 
 export default function TicketsScreen() {
@@ -22,28 +22,47 @@ export default function TicketsScreen() {
       return;
     }
 
-    const fetchExpenseSheets = async () => {
-      setLoading(true);
-      setError(null);
-
-      const { data, error } = await supabase
-        .from("expense_sheet_with_total")
-        .select("*")
-        .eq("id_user", employee.id);
-
-      if (error) {
-        setError("Error cargando tickets");
-        setSheets([]);
-      } else {
-        setSheets(data ?? []);
-        console.log(data);
-      }
-
-      setLoading(false);
-    };
-
     fetchExpenseSheets();
   }, [employee?.id]);
+
+  const fetchExpenseSheets = async () => {
+    setLoading(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from("expense_sheet_with_total")
+      .select("*")
+      .eq("id_user", employee?.id);
+
+    if (error) {
+      setError("Error cargando tickets");
+      setSheets([]);
+    } else {
+      setSheets(data ?? []);
+      console.log(data);
+    }
+
+    setLoading(false);
+  };
+
+  const onCreateSheet = async (values: ExpenseSheetPlain) => {
+    console.log("Crear hoja con:", values);
+
+    if (values.approval_date == "") 
+      values.approval_date = null;
+
+    const { data, error } = await supabase
+      .from('Expense_sheet')
+      .insert(values)
+      .select().single();
+    
+    if (error) {
+      console.error("Error al crear el Sheet");
+    } else {
+      fetchExpenseSheets()
+    }
+
+  }
 
   return (
   <Box flex={1} bg="$backgroundLight50">
@@ -62,7 +81,7 @@ export default function TicketsScreen() {
           <CreateSheetView
             onClose={() => setCreateSheetView(false)}
             onCreate={(values) => {
-              console.log("Crear hoja con:", values);
+              onCreateSheet(values);
               setCreateSheetView(false);
             }}
           />
@@ -84,7 +103,7 @@ export default function TicketsScreen() {
           </Text>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && !createSheetView && (
           <ScrollView
             flex={1}
             w="$full"
@@ -95,7 +114,7 @@ export default function TicketsScreen() {
               <SheetCard
                 key={sheet.id}
                 sheet={sheet}
-                onPress={() => {
+                onPress={() => { 
                   // TODO: Navegar a detalle del ticket
                   console.log("Abrir hoja", sheet.id);
                 }}
