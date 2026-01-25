@@ -10,6 +10,19 @@ export type ExpenseSheetPlain = {
   id_status: string;
 };
 
+export type ExpenseLinePlain = {
+  id?: number;
+  created_at?: string | null;
+  title: string;
+  amount?: number;
+  date?: string | null;
+  tax: number;
+  foto?: string;
+  id_payment_type: string;	
+  id_category: string;
+  id_sheet: string;
+}
+
 export type OrganizationPlain = {
   id: string;
   name: string;

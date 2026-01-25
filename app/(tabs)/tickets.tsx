@@ -2,6 +2,7 @@ import { Box, Text, VStack, Heading, ScrollView, HStack } from "@gluestack-ui/th
 import AddButton from "@/components/custom/AddButton";
 import SheetCard from "@/components/custom/SheetCard";
 import CreateSheetView from "@/components/custom/CreateSheetView";
+import SheetView from "@/components/custom/SheetView";
 import useAuth from "../auth/context/useAuth";
 import { supabase } from "@/utils/supabase";
 import { useEffect, useState } from "react";
@@ -14,6 +15,7 @@ export default function TicketsScreen() {
   const [loading, setLoading] = useState(true);
   const [createSheetView, setCreateSheetView] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSheet, setSelectedSheet] = useState<ExpenseSheet | null>(null);
 
 
   useEffect(() => {
@@ -43,6 +45,23 @@ export default function TicketsScreen() {
     }
 
     setLoading(false);
+  };
+
+  const deleteSheet = async (id: number) => {
+    const { error } = await supabase
+      .from('Expense_sheet')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error("Error eliminando el Sheet", error);
+      return;
+    }
+
+    // Si estaba abierta esta hoja, cerrarla
+    setSelectedSheet((prev) => (prev?.id === id ? null : prev));
+    // Refrescar listado
+    fetchExpenseSheets();
   };
 
   const onCreateSheet = async (values: ExpenseSheetPlain) => {
@@ -87,6 +106,13 @@ export default function TicketsScreen() {
           />
         )}
 
+        {selectedSheet && !createSheetView && (
+          <SheetView
+            sheet={selectedSheet}
+            onClose={() => setSelectedSheet(null)}
+          />
+        )}
+
         {loading && (
           <Text textAlign="center">Cargando tickets...</Text>
         )}
@@ -103,7 +129,7 @@ export default function TicketsScreen() {
           </Text>
         )}
 
-        {!loading && !error && !createSheetView && (
+        {!loading && !error && !createSheetView && !selectedSheet && (
           <ScrollView
             flex={1}
             w="$full"
@@ -115,9 +141,9 @@ export default function TicketsScreen() {
                 key={sheet.id}
                 sheet={sheet}
                 onPress={() => { 
-                  // TODO: Navegar a detalle del ticket
-                  console.log("Abrir hoja", sheet.id);
+                  setSelectedSheet(sheet);
                 }}
+                onDelete={() => deleteSheet(sheet.id)}
               />
             ))}
           </ScrollView>
