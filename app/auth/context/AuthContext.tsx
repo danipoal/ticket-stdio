@@ -19,7 +19,7 @@ type AuthContextType = {
   user: Session["user"] | null;
   employee: EmployeePlain | null;
   loading: boolean;
-  fetchEmployee: () => Promise<any>;
+  fetchEmployee: (userId?: string) => Promise<any>;
   setEmployee: (e: EmployeePlain | null) => void;
 };
 
@@ -27,12 +27,13 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [employee, setEmployee] = useState<EmployeePlain | null>();
+  const [employee, setEmployee] = useState<EmployeePlain | null>(null);
   
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   
   useEffect(() => {
+    console.log("Init Auth")
     initAuth();
   }, []);
 
@@ -48,20 +49,30 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const initAuth = async () => {
 
-    const isInStorage = await initFromStorage();
-    if (isInStorage) return;
+    await initFromStorage();
     
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      fetchEmployee();
-      setLoading(false);
-    });
+    console.log("Auth no storage, intentando obtenerlo")
+    const { data: { session } } = await supabase.auth.getSession();
+    setSession(session ?? null);
+    if (session?.user) {
+      await fetchEmployee(session.user.id);
+    } else {
+      setEmployee(null);
+    }
+    setLoading(false);
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session ?? null);
+      if (session?.user) {
+        await fetchEmployee(session.user.id);
+        await AsyncStorage.setItem("session", JSON.stringify(session));
+      } else {
+        setEmployee(null);
+        await AsyncStorage.removeItem("session");
+        await AsyncStorage.removeItem("employee");
+      }
     });
 
     // Guardamos los datos si los tenemos
@@ -84,11 +95,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         setEmployee(JSON.parse(storedEmployee));
       }
 
-      // Si ambos existen, no hace falta pedir nada más
-      if (storedSession && storedEmployee) {
-        setLoading(false);
-        return true;
-      }
+      // No hacemos early return: siempre validamos con Supabase
       return false;
     } catch (error) {
       console.error("Error intendando leer los datos de session en Async")
@@ -97,12 +104,13 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   }
 
-  const fetchEmployee = async () => {
-    if (session?.user) {
+  const fetchEmployee = async (userId?: string) => {
+    const id = userId ?? session?.user?.id;
+    if (id) {
       const { data, error } = await supabase
         .from("employees")
         .select("*")
-        .eq("id_user", session.user.id)
+        .eq("id_user", id)
         .single();
 
       if (error) {
@@ -110,6 +118,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         setEmployee(null);
         return;
       }
+      console.log("Fetch de data hecho con exito", data)
       setEmployee(data);
       await AsyncStorage.setItem("employee", JSON.stringify(data));
       

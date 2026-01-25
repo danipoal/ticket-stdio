@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ const Login = () => {
 
   const router = useRouter();
   const toast = useToast();
-  const { fetchEmployee } = useAuth();
+  const { employee, loading } = useAuth();
 
   const {
     control,
@@ -58,7 +58,7 @@ const Login = () => {
 
   const onSubmit = async (data: any) => {
     // navigation.navigate("Home");
-
+    debugger
 
     clearErrors();
     let valid = true;
@@ -96,16 +96,16 @@ const Login = () => {
       return;
     }
 
-    // if (result.password !== data.password) {
-    //   setValidated({ emailValid: true, passwordValid: false });
-    //   setError("password", { type: "manual", message: "Password incorrect" });
-    //   return;
-    // }
-    fetchEmployee();
-    router.push("/(tabs)/home");
+    // La navegación se realizará cuando employee esté listo (useEffect)
     console.log("Logged in successfully!");
     reset();
   };
+
+  useEffect(() => {
+    if (!loading && employee) {
+      router.replace("/(tabs)/home");
+    }
+  }, [loading, employee]);
 
   function redirectSignIn() {
     console.log("GO REGISTER")
