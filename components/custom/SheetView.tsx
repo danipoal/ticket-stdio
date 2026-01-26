@@ -17,10 +17,23 @@ import {
   Pressable,
   Icon,
   ScrollView,
+  Select,
+  SelectTrigger,
+  SelectInput,
+  SelectPortal,
+  SelectBackdrop,
+  SelectContent,
+  SelectDragIndicator,
+  SelectDragIndicatorWrapper,
+  SelectItem,
+  SelectScrollView,
+  SelectIcon,
 } from "@gluestack-ui/themed";
-import { X, Plus, Trash2 } from "lucide-react-native";
+import { X, Plus, Trash2, CheckCircle2, XCircle } from "lucide-react-native";
 import { supabase } from "@/utils/supabase";
 import { ExpenseLinePlain, ExpenseSheet } from "@/constants/types";
+import useAux from "@/app/auxdata/context/useAux";
+import { SheetStatusID } from "@/constants/constants";
 
 type SheetViewProps = {
   sheet: ExpenseSheet;
@@ -40,6 +53,9 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
   const [idPaymentType, setIdPaymentType] = useState<string>("");
   const [idCategory, setIdCategory] = useState<string>("");
   const [foto, setFoto] = useState<string>("");
+  const { paymentTypes, categories } = useAux();
+  const [statusId, setStatusId] = useState<number>(sheet?.status?.id ?? SheetStatusID.PENDIENTE);
+  const [updatingStatus, setUpdatingStatus] = useState<boolean>(false);
 
   useEffect(() => {
     fetchExpenseLines();
@@ -63,6 +79,23 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
     }
 
     setLoading(false);
+  };
+
+  const updateSheetStatus = async (newStatusId: number) => {
+    try {
+      setUpdatingStatus(true);
+      const { error } = await supabase
+        .from("Expense_sheet")
+        .update({ id_status: String(newStatusId) })
+        .eq("id", sheet.id);
+      if (error) {
+        setError("No se pudo actualizar el estado de la hoja");
+        return;
+      }
+      setStatusId(newStatusId);
+    } finally {
+      setUpdatingStatus(false);
+    }
   };
 
   const handleCreateLine = async () => {
@@ -167,10 +200,24 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
         {/* Acciones */}
         <HStack mt={16} mb={8} alignItems="center" justifyContent="space-between">
           <Heading size="md">Líneas de gasto</Heading>
-          <Button onPress={() => setCreateOpen((x) => !x)}>
-            <Icon as={Plus} mr="$2" />
-            <ButtonText>Añadir línea</ButtonText>
-          </Button>
+          <HStack space="sm" alignItems="center">
+            {statusId !== SheetStatusID.APROBADO && (
+              <Button action="positive" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.APROBADO)}>
+                <Icon as={CheckCircle2} /*mr="$2"*/ />
+                {/* <ButtonText>OK</ButtonText> */}
+              </Button>
+            )}
+            {statusId !== SheetStatusID.RECHAZADO && (
+              <Button action="negative" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.RECHAZADO)}>
+                <Icon as={XCircle} /*mr="$2"*/ />
+                {/* <ButtonText>Cancelar</ButtonText> */}
+              </Button>
+            )}
+            <Button onPress={() => setCreateOpen((x) => !x)}>
+              <Icon as={Plus} mr="$2" />
+              <ButtonText>Añadir línea</ButtonText>
+            </Button>
+          </HStack>
         </HStack>
         {/* Contenido desplazable: formulario + lista/estados */}
         <ScrollView
@@ -222,19 +269,86 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
               <HStack space="md">
                 <FormControl flex={1}>
                   <FormControlLabel>
-                    <FormControlLabelText>Tipo de pago (ID)</FormControlLabelText>
+                    <FormControlLabelText>Tipo de pago</FormControlLabelText>
                   </FormControlLabel>
-                  <Input>
-                    <InputField value={idPaymentType} onChangeText={setIdPaymentType} placeholder="p.ej. 1" />
-                  </Input>
+                  {paymentTypes && paymentTypes.length > 0 ? (
+                    <Select
+                      selectedValue={idPaymentType}
+                      onValueChange={(v: string) => setIdPaymentType(v)}
+                    >
+                      <SelectTrigger>
+                        <SelectInput placeholder="Selecciona tipo de pago" />
+                        <SelectIcon mr="$3" />
+                      </SelectTrigger>
+                      <SelectPortal>
+                        <SelectBackdrop />
+                        <SelectContent>
+                          <SelectDragIndicatorWrapper>
+                            <SelectDragIndicator />
+                          </SelectDragIndicatorWrapper>
+                          <SelectScrollView>
+                            {paymentTypes.map((pt) => (
+                              <SelectItem
+                                key={String(pt.id)}
+                                label={pt.name}
+                                value={String(pt.id)}
+                              />
+                            ))}
+                          </SelectScrollView>
+                        </SelectContent>
+                      </SelectPortal>
+                    </Select>
+                  ) : (
+                    <Input>
+                      <InputField
+                        value={idPaymentType}
+                        onChangeText={setIdPaymentType}
+                        placeholder="p.ej. 1"
+                      />
+                    </Input>
+                  )}
                 </FormControl>
+
                 <FormControl flex={1}>
                   <FormControlLabel>
-                    <FormControlLabelText>Categoría (ID)</FormControlLabelText>
+                    <FormControlLabelText>Categoría</FormControlLabelText>
                   </FormControlLabel>
-                  <Input>
-                    <InputField value={idCategory} onChangeText={setIdCategory} placeholder="p.ej. 1" />
-                  </Input>
+                  {categories && categories.length > 0 ? (
+                    <Select
+                      selectedValue={idCategory}
+                      onValueChange={(v: string) => setIdCategory(v)}
+                    >
+                      <SelectTrigger>
+                        <SelectInput placeholder="Selecciona categoría" />
+                        <SelectIcon mr="$3" />
+                      </SelectTrigger>
+                      <SelectPortal>
+                        <SelectBackdrop />
+                        <SelectContent>
+                          <SelectDragIndicatorWrapper>
+                            <SelectDragIndicator />
+                          </SelectDragIndicatorWrapper>
+                          <SelectScrollView>
+                            {categories.map((cat) => (
+                              <SelectItem
+                                key={String(cat.id)}
+                                label={cat.name}
+                                value={String(cat.id)}
+                              />
+                            ))}
+                          </SelectScrollView>
+                        </SelectContent>
+                      </SelectPortal>
+                    </Select>
+                  ) : (
+                    <Input>
+                      <InputField
+                        value={idCategory}
+                        onChangeText={setIdCategory}
+                        placeholder="p.ej. 1"
+                      />
+                    </Input>
+                  )}
                 </FormControl>
               </HStack>
 

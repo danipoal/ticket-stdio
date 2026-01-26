@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Box,
   VStack,
@@ -35,9 +35,9 @@ import {
 } from "@gluestack-ui/themed";
 import { Calendar } from "react-native-calendars";
 import { X, RotateCcw } from "lucide-react-native";
-import { SheetStatusID } from "@/constants/constants";
 import { ExpenseSheetPlain } from "@/constants/types";
 import useAuth from "@/app/auth/context/useAuth";
+import useAux from "@/app/auxdata/context/useAux";
 
 type CreateSheetViewProps = {
   onClose?: () => void;
@@ -50,25 +50,25 @@ export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewPr
   const [project, setProject] = useState("");
   const [createDate, setCreateDate] = useState<string | null>(new Date().toISOString().slice(0, 10));
   const [approvalDate, setApprovalDate] = useState<string | null>("");
-  const [statusId, setStatusId] = useState<number>(SheetStatusID.PENDIENTE);
-
-  const statusOptions = useMemo(
-    () => [
-      { label: "Aprobado", value: SheetStatusID.APROBADO },
-      { label: "Pendiente", value: SheetStatusID.PENDIENTE },
-      { label: "Rechazado", value: SheetStatusID.RECHAZADO },
-    ],
-    []
-  );
+  const { sheetStatuses } = useAux();
+  const [statusId, setStatusId] = useState<string>("");
   const { employee } = useAuth();
   const currentStatusLabel = useMemo(
-    () => statusOptions.find((opt) => opt.value === statusId)?.label ?? "",
-    [statusId, statusOptions]
+    () => sheetStatuses.find((s) => String(s.id) === String(statusId))?.name ?? "",
+    [statusId, sheetStatuses]
   );
+
+  useEffect(() => {
+    if (!statusId && sheetStatuses && sheetStatuses.length > 0) {
+      const pending = sheetStatuses.find((s) => s.name?.toLowerCase().includes("pend")) || sheetStatuses[0];
+      setStatusId(String(pending.id));
+    }
+  }, [sheetStatuses]);
 
   const formatDate = (date: Date) => date.toISOString().slice(0, 10);
 
   const handleCreate = () => {
+    const statusToSend = statusId || (sheetStatuses[0] ? String(sheetStatuses[0].id) : "");
     const payload: ExpenseSheetPlain = {
       title,
       description,
@@ -76,7 +76,7 @@ export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewPr
     //   create_date: createDate ?? "",
       approval_date: approvalDate ?? "",
       id_user: employee?.id ?? "",
-      id_status: String(statusId),
+      id_status: statusToSend,
     };
     onCreate?.(payload);
   };
@@ -211,23 +211,29 @@ export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewPr
             <FormControlLabel>
               <FormControlLabelText>Estado</FormControlLabelText>
             </FormControlLabel>
-            <Select selectedValue={String(statusId)} onValueChange={(v: string) => setStatusId(Number(v))}>
-              <SelectTrigger>
-                <SelectInput value={currentStatusLabel} placeholder="Selecciona estado" />
-                <SelectIcon mr="$3" />
-              </SelectTrigger>
-              <SelectPortal>
-                <SelectBackdrop />
-                <SelectContent>
-                  <SelectDragIndicatorWrapper>
-                    <SelectDragIndicator />
-                  </SelectDragIndicatorWrapper>
-                  {statusOptions.map((opt) => (
-                    <SelectItem key={opt.value} label={opt.label} value={String(opt.value)} />
-                  ))}
-                </SelectContent>
-              </SelectPortal>
-            </Select>
+            {sheetStatuses && sheetStatuses.length > 0 ? (
+              <Select selectedValue={statusId} onValueChange={(v: string) => setStatusId(v)}>
+                <SelectTrigger>
+                  <SelectInput value={currentStatusLabel} placeholder="Selecciona estado" />
+                  <SelectIcon mr="$3" />
+                </SelectTrigger>
+                <SelectPortal>
+                  <SelectBackdrop />
+                  <SelectContent>
+                    <SelectDragIndicatorWrapper>
+                      <SelectDragIndicator />
+                    </SelectDragIndicatorWrapper>
+                    {sheetStatuses.map((s) => (
+                      <SelectItem key={String(s.id)} label={s.name} value={String(s.id)} />
+                    ))}
+                  </SelectContent>
+                </SelectPortal>
+              </Select>
+            ) : (
+              <Input>
+                <InputField value={String(statusId)} onChangeText={(t) => setStatusId(t)} placeholder="ID de estado" />
+              </Input>
+            )}
           </FormControl>
 
           <HStack space="sm" justifyContent="center">
