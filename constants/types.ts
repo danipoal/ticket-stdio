@@ -57,3 +57,15 @@ export type SheetStatus = {
     id: number;
     name: string;
 }
+
+export type DashboardStats = {
+  id_user: string;
+  name: string;
+  id_admin: string;
+  total_expense_sheets: number;
+  approved_sheets: number;
+  pending_sheets: number;
+  denied_sheets: number;
+  total_expense_lines: number;
+  total_amount: number;
+};

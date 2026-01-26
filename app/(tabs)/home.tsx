@@ -3,20 +3,13 @@ import { useEffect, useMemo, useState } from "react"
 import { supabase } from "@/utils/supabase"
 import useAuth from "@/app/auth/context/useAuth"
 import { FileText, CheckCircle2, Hourglass, XCircle, ListOrdered, Euro } from "lucide-react-native"
+import { DashboardStats } from "@/constants/types"
 
 export default function HomeScreen() {
   const { employee } = useAuth()
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [stats, setStats] = useState<{
-    id_user: string
-    total_expense_sheets: number
-    approved_sheets: number
-    pending_sheets: number
-    denied_sheets: number
-    total_expense_lines: number
-    total_amount: number
-  } | null>(null)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
 
   useEffect(() => {
     const run = async () => {

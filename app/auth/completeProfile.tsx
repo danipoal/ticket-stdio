@@ -1,44 +1,64 @@
 import { UIFormControl } from "@/components/ui/form-control";
 import { View, Toast, useToast, ToastTitle, ToastDescription } from "@gluestack-ui/themed";
-import { Input, InputField, InputSlot, InputIcon } from "@/components/ui/input";
+import { Input, InputField } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { useState } from "react";
 import { Button, ButtonText } from "@/components/ui/button";
 import { supabase } from "@/utils/supabase";
-import { Select } from "@/components/ui/select";
 import { Box } from "@/components/ui/box";
 import useAuth from "../auth/context/useAuth"
-import { Employee, Organization } from "./context/AuthContext";
 import { useRouter } from "expo-router";
+import { EmployeePlain, OrganizationPlain } from "@/constants/types";
 
 const completeProfile = () => {
   const [code, setCode] = useState("");
   const [isValidated, setIsValidated] = useState(false);
 
   const { employee, user } = useAuth();
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [employeeToCreate, setEmployeeToCreate] = useState<Partial<Employee>>({});
+  const [organization, setOrganization] = useState<OrganizationPlain | null>(null);
+  const [employeeToCreate, setEmployeeToCreate] = useState<Partial<EmployeePlain>>({});
   const [isInvalid, setIsInvalid] = useState(false);
   const [name, setName] = useState("");
   const toast = useToast();
   const router = useRouter();
 
 
+  const [isValidating, setIsValidating] = useState(false);
   const validateCode = async () => {
-    console.log(code)
+    try {
+      const input = code?.trim();
+      console.log("Validando código:", input);
+      if (!input) {
+        showErrorToast("Introduce un código de empresa");
+        return;
+      }
+      setIsValidating(true);
 
-    let { data: org, error } = await supabase
-    .from('Organization')
-    .select("*")
-    .eq('VAT_number', code)
-    .maybeSingle();
+      const { data: org, error } = await supabase
+        .from('Organization')
+        .select('*')
+        .eq('VAT_number', input)
+        .maybeSingle();
 
-    console.log(org);
-    if (org) {
-        setOrganization(org);
+      console.log("Resultado Organization:", org, error);
+      if (error) {
+        showErrorToast(error.message);
+        setOrganization(null);
+        setIsValidated(false);
+        return;
+      }
+
+      if (org) {
+        setOrganization(org as OrganizationPlain);
         setIsValidated(true);
-    } else {
-      showErrorToast();
+      } else {
+        showErrorToast("No se encontró organización para ese código");
+      }
+    } catch (e: any) {
+      console.error("Error validando código:", e?.message ?? e);
+      showErrorToast("Error inesperado validando el código");
+    } finally {
+      setIsValidating(false);
     }
   }
 
@@ -54,7 +74,7 @@ const completeProfile = () => {
         id_user: user.id,
         is_admin: false,
       }));  
-      const employee: Partial<Employee> = {
+      const employee: Partial<EmployeePlain> = {
         name,
         id_organization: organization.id,
         id_user: user.id,
@@ -68,7 +88,7 @@ const completeProfile = () => {
     }
 }
 
-  const submitEmployee = async (employee: Partial<Employee>) => {
+  const submitEmployee = async (employee: Partial<EmployeePlain>) => {
     
     const { data, error } = await supabase
       .from('employees')
@@ -117,7 +137,7 @@ const completeProfile = () => {
                   placeholder="Código de empresa"
                 />
               </Input>
-              <Button onPress={validateCode} className="mt-3">
+              <Button onPress={validateCode} className="mt-3" isDisabled={isValidating}>
                 <ButtonText>Validar código de empresa</ButtonText>
               </Button>
             </UIFormControl>
