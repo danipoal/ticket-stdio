@@ -197,10 +197,13 @@ const Login = () => {
       >
         <Text style={styles.buttonText}>Entrar</Text>
       </TouchableOpacity>
-
-      <Text onPress={redirectSignIn}>
-        Registrate
-      </Text>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={redirectSignIn}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.buttonText}>Registrate</Text>
+      </TouchableOpacity>
     </View>
 
   );

@@ -40,6 +40,10 @@ const Signin = () => {
     return /\S+@\S+\.\S+/.test(email);
   };
 
+  const redirectLogIn = () => {
+    router.push("/auth/login");
+  }
+
   const onSubmit = async (data: any) => {
     // navigation.navigate("Home");
 
@@ -172,6 +176,14 @@ const Signin = () => {
         activeOpacity={0.8}
       >
         <Text style={styles.buttonText}>Crear cuenta</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.button}
+        onPress={redirectLogIn}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.buttonText}>Inicia sesión</Text>
       </TouchableOpacity>
 
     {/* <Box flex={1} justifyContent="center" alignItems="center" bg="$backgroundLight0" p="$4">
