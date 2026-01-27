@@ -33,24 +33,24 @@ export default function SheetCard({ sheet, onPress, onDelete }: SheetCardProps) 
 					<VStack space="sm">
 						<Heading size="sm">{sheet.title}</Heading>
 
-						{sheet.description && (
+						{sheet.description ? (
 							<Text color="$coolGray600">{sheet.description}</Text>
-						)}
+						) : null}
 
-						<Text>
-							Proyecto:{" "}
+						<HStack space="xs" alignItems="center">
+							<Text>Proyecto:</Text>
 							<Text fontWeight="$bold">{sheet.project}</Text>
-						</Text>
+						</HStack>
 
-						<Text>
-							Total:{" "}
+						<HStack space="xs" alignItems="center">
+							<Text>Total:</Text>
 							<Text fontWeight="$bold">{sheet.total_amount} €</Text>
-						</Text>
+						</HStack>
 
-						<Text fontSize="$sm" color="$coolGray500">
-							Creado:{" "}
-							{new Date(sheet.create_date).toLocaleDateString()}
-						</Text>
+						<HStack space="xs" alignItems="center">
+							<Text fontSize="$sm" color="$coolGray500">Creado:</Text>
+							<Text fontSize="$sm" color="$coolGray500">{new Date(sheet.create_date).toLocaleDateString()}</Text>
+						</HStack>
 					</VStack>
 				</Pressable>
 

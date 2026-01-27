@@ -29,7 +29,12 @@ import {
   SelectScrollView,
   SelectIcon,
 } from "@gluestack-ui/themed";
-import { X, Plus, Trash2, CheckCircle2, XCircle } from "lucide-react-native";
+import { Platform, Linking } from "react-native";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import * as ImagePicker from "expo-image-picker";
+import * as WebBrowser from "expo-web-browser";
+import { X, Plus, Trash2, CheckCircle2, XCircle, Download } from "lucide-react-native";
 import { supabase } from "@/utils/supabase";
 import { ExpenseLinePlain, ExpenseSheet } from "@/constants/types";
 import useAux from "@/app/auxdata/context/useAux";
@@ -56,6 +61,10 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
   const { paymentTypes, categories } = useAux();
   const [statusId, setStatusId] = useState<number>(sheet?.status?.id ?? SheetStatusID.PENDIENTE);
   const [updatingStatus, setUpdatingStatus] = useState<boolean>(false);
+  const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState<any | null>(null);
+  const [selectedPhotoName, setSelectedPhotoName] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState<boolean>(false);
 
   useEffect(() => {
     fetchExpenseLines();
@@ -63,6 +72,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
   }, [sheet?.id]);
 
   const fetchExpenseLines = async () => {
+    console.log("Fetch ExpenseLines")
     setLoading(true);
     setError(null);
 
@@ -98,10 +108,76 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
     }
   };
 
+  const handleAttachPhoto = async () => {
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          setSelectedPhotoFile(file);
+          setSelectedPhotoUri(URL.createObjectURL(file));
+          setSelectedPhotoName(file.name);
+        }
+      };
+      input.click();
+    } else {
+      try {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          setError("Permiso denegado para acceder a la galería");
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.9,
+        });
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          setSelectedPhotoUri(asset.uri);
+          setSelectedPhotoName(asset.fileName ?? "foto.jpg");
+          setSelectedPhotoFile(null); // usaremos fetch->blob en móvil
+        }
+      } catch (e) {
+        setError("Para adjuntar fotos en móvil, instala expo-image-picker");
+      }
+    }
+  };
+
   const handleCreateLine = async () => {
     if (!title || !idPaymentType || !idCategory) {
       setError("Rellena título, tipo de pago y categoría");
       return;
+    }
+    // Subir foto a Supabase Storage si hay selección
+    let finalFotoUrl = foto?.trim() || undefined;
+    if (selectedPhotoUri || selectedPhotoFile) {
+      try {
+        setUploadingPhoto(true);
+        const filename = `${Date.now()}_${selectedPhotoName ?? "foto.jpg"}`;
+        const path = `expense-lines/${sheet.id}/${filename}`;
+        if (Platform.OS === "web" && selectedPhotoFile) {
+          await supabase.storage.from("tickets").upload(path, selectedPhotoFile, {
+            contentType: selectedPhotoFile.type || "image/jpeg",
+            upsert: true,
+          });
+        } else if (selectedPhotoUri) {
+          const resp = await fetch(selectedPhotoUri);
+          const blob = await resp.blob();
+          await supabase.storage.from("tickets").upload(path, blob, {
+            contentType: blob.type || "image/jpeg",
+            upsert: true,
+          });
+        }
+        const { data } = await supabase.storage.from("tickets").getPublicUrl(path);
+        finalFotoUrl = data.publicUrl;
+        setFoto(finalFotoUrl || "");
+      } catch (e) {
+        setError("Error subiendo la foto");
+      } finally {
+        setUploadingPhoto(false);
+      }
     }
 
     const payload: ExpenseLinePlain = {
@@ -109,7 +185,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
       amount: amount ? Number(amount) : undefined,
       date: date ?? null,
       tax: Number(tax || "0"),
-      foto: foto || undefined,
+      foto: finalFotoUrl || undefined,
       id_payment_type: idPaymentType,
       id_category: idCategory,
       id_sheet: String(sheet.id),
@@ -142,6 +218,43 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
       return new Date(d).toLocaleDateString();
     } catch {
       return d;
+    }
+  };
+
+  const handleDownload = async (url?: string | null) => {
+    if (!url) return;
+    if (Platform.OS === 'web') {
+      try {
+        await WebBrowser.openBrowserAsync(url);
+      } catch {
+        setError('No se pudo abrir el adjunto');
+      }
+      return;
+    }
+
+    // Android/iOS: descargar localmente y abrir/compartir
+    try {
+      const nameFromUrl = (() => {
+        try {
+          const clean = url.split('?')[0].split('#')[0];
+          const last = clean.substring(clean.lastIndexOf('/') + 1) || 'adjunto.jpg';
+          return last;
+        } catch {
+          return 'adjunto.jpg';
+        }
+      })();
+      const baseDir = (FileSystem as any).documentDirectory || (FileSystem as any).cacheDirectory || '';
+      const dest = baseDir + nameFromUrl;
+      await FileSystem.downloadAsync(url, dest);
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(dest);
+        return;
+      }
+
+      Linking.openURL(dest).catch(() => setError('Archivo descargado, pero no se pudo abrir.'));
+    } catch {
+      setError('No se pudo descargar el adjunto');
     }
   };
 
@@ -203,20 +316,18 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
           <HStack space="sm" alignItems="center">
             {statusId !== SheetStatusID.APROBADO && (
               <Button action="positive" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.APROBADO)}>
-                <Icon as={CheckCircle2} /*mr="$2"*/ />
-                {/* <ButtonText>OK</ButtonText> */}
+                <Icon as={CheckCircle2} />
               </Button>
             )}
             {statusId !== SheetStatusID.RECHAZADO && (
               <Button action="negative" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.RECHAZADO)}>
-                <Icon as={XCircle} /*mr="$2"*/ />
-                {/* <ButtonText>Cancelar</ButtonText> */}
+                <Icon as={XCircle} />
               </Button>
             )}
-            <Button onPress={() => setCreateOpen((x) => !x)}>
+            {statusId == SheetStatusID.PENDIENTE && (<Button onPress={() => setCreateOpen((x) => !x)}>
               <Icon as={Plus} mr="$2" />
               <ButtonText>Añadir línea</ButtonText>
-            </Button>
+            </Button>)}
           </HStack>
         </HStack>
         {/* Contenido desplazable: formulario + lista/estados */}
@@ -354,10 +465,19 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
 
               <FormControl>
                 <FormControlLabel>
-                  <FormControlLabelText>Foto (URL opcional)</FormControlLabelText>
+                  <FormControlLabelText>Foto</FormControlLabelText>
                 </FormControlLabel>
-                <Textarea>
-                  <TextareaInput value={foto} onChangeText={setFoto} placeholder="https://..." />
+                <HStack space="sm" alignItems="center">
+                  <Button variant="outline" onPress={handleAttachPhoto} isDisabled={uploadingPhoto}>
+                    <ButtonText>Adjuntar imagen</ButtonText>
+                  </Button>
+                  {selectedPhotoName ? (
+                    <Text color="$coolGray700">{selectedPhotoName}</Text>
+                  ) : null}
+                </HStack>
+                {/* Fallback para URL manual si se desea */}
+                <Textarea mt={8}>
+                  <TextareaInput value={foto} onChangeText={setFoto} placeholder="URL manual (opcional)" />
                 </Textarea>
               </FormControl>
 
@@ -409,28 +529,44 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                         <Text color="$coolGray600">Fecha: {formatDate(line.date)}</Text>
                       )}
                       {line.foto && (
-                        <Text color="$coolGray600">Adjunto: {line.foto}</Text>
+                        <HStack space="xs" alignItems="center">
+                          <Icon as={CheckCircle2} color="$green600" />
+                        </HStack>
                       )}
                     </VStack>
-                    <Pressable
-                      onPress={async () => {
-                        if (!line.id) return;
-                        const { error } = await supabase
-                          .from('Expense_line')
-                          .delete()
-                          .eq('id', line.id);
-                        if (!error) {
-                          fetchExpenseLines();
-                        } else {
-                          setError('Error eliminando la línea');
-                        }
-                      }}
-                      accessibilityLabel="Eliminar línea"
-                      accessibilityRole="button"
-                      hitSlop={10}
-                    >
-                      <Icon as={Trash2} size="lg" color="$coolGray700" />
-                    </Pressable>
+                    <HStack alignItems="center" space="sm">
+                      {line.foto && (
+                        <Pressable
+                          onPress={() => handleDownload(line.foto)}
+                          accessibilityRole="button"
+                          accessibilityLabel={Platform.OS === 'web' ? 'Abrir adjunto' : 'Descargar adjunto'}
+                        >
+                          <HStack space="xs" alignItems="center">
+                            <Icon as={Download} />
+                            <Text>{Platform.OS === 'web' ? 'Abrir' : 'Descargar'}</Text>
+                          </HStack>
+                        </Pressable>
+                      )}
+                      <Pressable
+                        onPress={async () => {
+                          if (!line.id) return;
+                          const { error } = await supabase
+                            .from('Expense_line')
+                            .delete()
+                            .eq('id', line.id);
+                          if (!error) {
+                            fetchExpenseLines();
+                          } else {
+                            setError('Error eliminando la línea');
+                          }
+                        }}
+                        accessibilityLabel="Eliminar línea"
+                        accessibilityRole="button"
+                        hitSlop={10}
+                      >
+                        <Icon as={Trash2} size="lg" color="$coolGray700" />
+                      </Pressable>
+                    </HStack>
                   </HStack>
                 </Box>
               ))}

@@ -46,6 +46,7 @@ export default function UserScreen() {
   }
 
   const logOut = async () => {
+    console.log("Log out");
     await supabase.auth.signOut();
     await AsyncStorage.removeItem("session");
     await AsyncStorage.removeItem("employee");

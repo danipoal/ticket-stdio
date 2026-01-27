@@ -5,7 +5,6 @@ import { StatusBar } from "expo-status-bar"
 import AuthProvider from "./auth/context/AuthContext"
 import AuxProvider from "./auxdata/context/AuxContext"
 import { SafeAreaProvider } from 'react-native-safe-area-context'
-import { View } from '@gluestack-ui/themed'
 import { useEffect } from "react"
 
 function TitleSetter() {
