@@ -68,7 +68,7 @@ export default function HomeScreen() {
   return (
     <Box flex={1} bg="$backgroundLight50">
       <VStack flex={1} space="lg" px={4} py={4} maxWidth={1024} alignSelf="center" w="$full">
-        <Heading size="xl" textAlign="center">Dashboard</Heading>
+        <Heading size="xl" textAlign="center"></Heading>
 
         {loading && (
           <Center flex={1}><Text>Cargando resumen...</Text></Center>
