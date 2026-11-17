@@ -2,8 +2,8 @@ import { GluestackUIProvider } from "@gluestack-ui/themed"
 import { config } from "@gluestack-ui/config"
 import { Slot, usePathname } from "expo-router"
 import { StatusBar } from "expo-status-bar"
-import AuthProvider from "./auth/context/AuthContext"
-import AuxProvider from "./auxdata/context/AuxContext"
+import AuthProvider from "@/context/AuthContext"
+import AuxProvider from "@/context/AuxContext"
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useEffect } from "react"
 

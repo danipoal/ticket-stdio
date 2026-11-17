@@ -3,7 +3,7 @@ import AddButton from "@/components/custom/AddButton";
 import SheetCard from "@/components/custom/SheetCard";
 import CreateSheetView from "@/components/custom/CreateSheetView";
 import SheetView from "@/components/custom/SheetView";
-import useAuth from "../auth/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { supabase } from "@/utils/supabase";
 import { useEffect, useState } from "react";
 import { ExpenseSheet, ExpenseSheetPlain } from "@/constants/types";

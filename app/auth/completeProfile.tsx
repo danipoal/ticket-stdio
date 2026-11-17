@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button, ButtonText } from "@/components/ui/button";
 import { supabase } from "@/utils/supabase";
 import { Box } from "@/components/ui/box";
-import useAuth from "../auth/context/useAuth"
+import useAuth from "@/context/useAuth"
 import { useRouter } from "expo-router";
 import { EmployeePlain, OrganizationPlain } from "@/constants/types";
 
