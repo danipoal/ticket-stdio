@@ -46,7 +46,9 @@ const check = (name, ok, extra='') => { console.log((ok?'PASS ':'FAIL ')+name+(e
     check(`${p} ya no es una pagina propia`, /Inicio sesión|Unmatched|not exist|Not Found|404/i.test(t) || page.url().includes('/auth/login'), page.url());
   }
 
-  const real = pageErrors.filter(e => !/favicon|Failed to load resource/i.test(e));
+  // Sin backend real (CI) el login fallido provoca un "Failed to fetch" esperado.
+  const ignore = process.env.SMOKE_ONLINE === '1' ? /favicon|Failed to load resource/i : /favicon|Failed to load resource|Failed to fetch/i;
+  const real = pageErrors.filter(e => !ignore.test(e));
   check('sin errores de JS en consola', real.length === 0, real.slice(0,3).join(' || '));
   await browser.close();
   process.exit(fails.length ? 1 : 0);
