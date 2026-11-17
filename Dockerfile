@@ -1,42 +1,32 @@
-FROM node:20
+# syntax=docker/dockerfile:1
+
+# ---------------------------------------------------------------------------
+# Build: exporta la app como web estatica.
+# app.json ya define web.output = "static", asi que expo-router genera
+# un HTML por ruta ademas del bundle JS.
+# ---------------------------------------------------------------------------
+FROM node:20 AS build
 
 WORKDIR /app
 
-# Copia package.json y package-lock.json
-COPY package*.json ./
+# Las EXPO_PUBLIC_* se incrustan en el bundle en tiempo de build,
+# por eso .env.local tiene que entrar en el contexto (ver .dockerignore).
+# npm ci: instalacion reproducible desde package-lock.json (el CI de GitHub
+# usa el mismo comando). .npmrc trae legacy-peer-deps=true y hace falta para
+# resolver el arbol de dependencias.
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci --no-audit --no-fund
 
-# Instala dependencias
-RUN npm install
-
-# Copia todo el proyecto
 COPY . .
 
-# Exponemos el puerto de Expo Web
-EXPOSE 19000
+RUN npx expo export --platform web --output-dir dist
 
-# Comando por defecto para desarrollo web
-CMD ["npx", "expo", "start", "--web", "--host", "lan"]
+# ---------------------------------------------------------------------------
+# Runtime: solo nginx + los estaticos. Sin Node, sin Metro, sin watchers.
+# ---------------------------------------------------------------------------
+FROM nginx:alpine
 
-# PARA SUBIR TODAS LAS POSIBLES VERSIONES YA SEA MOBIL, DEVTOOLS, ETC...
-# FROM node:20
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# # Instala watchman para React Native
-# RUN apt-get update && apt-get install -y watchman && rm -rf /var/lib/apt/lists/*
-
-# WORKDIR /app
-
-# # Copia package.json y package-lock.json
-# COPY package*.json ./
-
-# # Instala dependencias
-# RUN npm install
-
-# # Copia todo el proyecto
-# COPY . .
-
-# # Exponemos los puertos de Expo y Metro Bundler
-# EXPOSE 19000 19001 19002 8081
-
-# # Comando por defecto para desarrollo con Expo
-# CMD ["npx", "expo", "start", "--tunnel"]
-
+EXPOSE 8081

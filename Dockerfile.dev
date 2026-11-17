@@ -1,0 +1,15 @@
+# Entorno de desarrollo (el que habia antes en Dockerfile).
+# Solo se usa con el perfil "dev":
+#   docker compose --profile dev up ticket-studio-dev
+FROM node:20
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 8081
+
+CMD ["npx", "expo", "start", "--web", "--host", "lan"]

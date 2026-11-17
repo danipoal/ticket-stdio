@@ -148,6 +148,7 @@ cssInterop(UIInput.Input, {
 });
 cssInterop(UIInput.Icon, {
   className: {
+    // @ts-ignore
     target: 'style',
     nativeStyleToProp: {
       height: true,
