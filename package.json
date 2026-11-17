@@ -11,7 +11,8 @@
     "test": "jest",
     "lint": "expo lint",
     "test:watch": "jest --watchAll",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "npx expo export --platform web --output-dir dist && ./e2e/run.sh dist"
   },
   "jest": {
     "preset": "jest-expo",
