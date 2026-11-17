@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,8 @@ import {
 import { useForm, Controller } from "react-hook-form";
 import { useRouter } from "expo-router";
 import { login } from "@/utils/supabase";
+import { isValidEmail } from "@/utils/validation";
 import { Toast, ToastDescription, ToastTitle, useToast } from "@gluestack-ui/themed";
-import useAuth from "@/context/useAuth";
 
 
 
@@ -19,7 +19,7 @@ const Login = () => {
 
   const router = useRouter();
   const toast = useToast();
-  const { employee, loading } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
 
   const {
     control,
@@ -43,7 +43,7 @@ const Login = () => {
     render: ({ id }) => {
       return (
         <Toast nativeID={id} action="error" variant="solid">
-          <ToastTitle>Credenciales Incorrectas</ToastTitle>
+          <ToastTitle>No se pudo iniciar sesión</ToastTitle>
           <ToastDescription>{message}</ToastDescription>
         </Toast>
       );
@@ -51,64 +51,48 @@ const Login = () => {
   });
 };
 
-  const validateEmail = (email: string) => {
-    // Validación básica de email
-    return /\S+@\S+\.\S+/.test(email);
-  };
 
   const onSubmit = async (data: any) => {
-    // navigation.navigate("Home");
-    debugger
-
+    if (submitting) return;
     clearErrors();
     let valid = true;
 
     if (!data.email) {
-      setError("email", { type: "required", message: "Email is required" });
+      setError("email", { type: "required", message: "El email es obligatorio" });
       valid = false;
-    } else if (!validateEmail(data.email)) {
-      setError("email", { type: "pattern", message: "Email is invalid" });
+    } else if (!isValidEmail(data.email)) {
+      setError("email", { type: "pattern", message: "El email no es válido" });
       valid = false;
     }
 
     if (!data.password) {
       setError("password", {
         type: "required",
-        message: "Password is required",
+        message: "La contraseña es obligatoria",
       });
       valid = false;
     }
 
     if (!valid) return;
 
-    // const user = USERS.find((u) => u.email === data.email);
     setValidated({ emailValid: true, passwordValid: true });
 
-    
-    const result = await login(data.email, data.password)
-
-
-    if (!result) {
-    //   setValidated({ emailValid: false, passwordValid: true });
-    //   setError("email", { type: "manual", message: "Email not found" });
-      console.log("ERROR in login");
-      showLoginErrorToast();
-      return;
+    setSubmitting(true);
+    try {
+      const result = await login(data.email, data.password);
+      if (!result.ok) {
+        showLoginErrorToast(result.message);
+        return;
+      }
+      // La navegación la hace el guardia de rutas de AuthProvider cuando la
+      // sesión y el empleado están cargados.
+      reset();
+    } finally {
+      setSubmitting(false);
     }
-
-    // La navegación se realizará cuando employee esté listo (useEffect)
-    console.log("Logged in successfully!");
-    reset();
   };
 
-  useEffect(() => {
-    if (!loading && employee) {
-      router.replace("/(tabs)/home");
-    }
-  }, [loading, employee]);
-
   function redirectSignIn() {
-    console.log("GO REGISTER")
     router.push("/auth/signin");
   }
 
@@ -124,13 +108,14 @@ const Login = () => {
         <Controller
           control={control}
           name="email"
-          rules={{ required: true }}
+          rules={{ required: "El email es obligatorio" }}
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
               style={[
                 styles.input,
                 errors.email ? styles.inputError : undefined,
               ]}
+              testID="login-email"
               placeholder="Introduce Email"
               onBlur={onBlur}
               onChangeText={onChange}
@@ -155,7 +140,7 @@ const Login = () => {
         <Controller
           control={control}
           name="password"
-          rules={{ required: true }}
+          rules={{ required: "La contraseña es obligatoria" }}
           render={({ field: { onChange, onBlur, value } }) => (
             <View style={styles.passwordContainer}>
               <TextInput
@@ -164,13 +149,14 @@ const Login = () => {
                   styles.passwordInput,
                   errors.password ? styles.inputError : undefined,
                 ]}
+                testID="login-password"
                 placeholder="Introduce contraseña"
                 onBlur={onBlur}
                 onChangeText={onChange}
                 value={value}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                onSubmitEditing={Keyboard.dismiss}
+                onSubmitEditing={handleSubmit(onSubmit)}
                 returnKeyType="done"
               />
               <TouchableOpacity
@@ -191,11 +177,13 @@ const Login = () => {
       </View>
 
       <TouchableOpacity
-        style={styles.button}
+        style={[styles.button, submitting ? { opacity: 0.6 } : undefined]}
         onPress={handleSubmit(onSubmit)}
+        disabled={submitting}
         activeOpacity={0.8}
+        testID="login-submit"
       >
-        <Text style={styles.buttonText}>Entrar</Text>
+        <Text style={styles.buttonText}>{submitting ? "Entrando..." : "Entrar"}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.button}

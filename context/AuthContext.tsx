@@ -1,25 +1,24 @@
 import {
   createContext,
-  useContext,
+  useCallback,
   useEffect,
+  useRef,
   useState,
   ReactNode,
-  useCallback,
 } from "react";
 import { supabase } from "@/utils/supabase";
-import type { Session, User } from "@supabase/supabase-js";
-import { useRouter, useFocusEffect } from "expo-router";
+import type { Session } from "@supabase/supabase-js";
+import { usePathname, useRootNavigationState, useRouter } from "expo-router";
 import { Spinner } from '@/components/ui/spinner/index';
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { EmployeePlain } from "@/constants/types";
-
+import { routeForState } from "@/utils/authRouting";
 
 type AuthContextType = {
   session: Session | null;
   user: Session["user"] | null;
   employee: EmployeePlain | null;
   loading: boolean;
-  fetchEmployee: (userId?: string) => Promise<any>;
+  fetchEmployee: (userId?: string) => Promise<EmployeePlain | null>;
   setEmployee: (e: EmployeePlain | null) => void;
 };
 
@@ -28,115 +27,97 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [employee, setEmployee] = useState<EmployeePlain | null>(null);
-  
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  
-  useEffect(() => {
-    console.log("Init Auth")
-    initAuth();
+  const pathname = usePathname();
+  const navState = useRootNavigationState();
+  // Id del usuario cuya ficha de empleado ya se ha consultado. Mientras no
+  // coincida con el usuario actual no sabemos si tiene perfil o no, y el
+  // guardia de rutas no debe decidir (si no, un login normal pasaria un
+  // instante por /auth/completeProfile).
+  const [checkedFor, setCheckedFor] = useState<string | null>(null);
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
+
+  const fetchEmployee = useCallback(async (userId?: string): Promise<EmployeePlain | null> => {
+    const id = userId ?? sessionRef.current?.user?.id;
+    if (!id) return null;
+    try {
+    // maybeSingle: un usuario recien registrado aun no tiene fila en employees
+    // y .single() lo trataba como un error.
+    const { data, error } = await supabase
+      .from("employees")
+      .select("*")
+      .eq("id_user", id)
+      .maybeSingle();
+    if (error) {
+      console.error("Error fetching employee data:", error.message);
+      setEmployee(null);
+      return null;
+    }
+    setEmployee(data ?? null);
+    return data ?? null;
+    } finally {
+      setCheckedFor(id);
+    }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!loading) {
-        if (!session?.user) router.replace("/auth/login");
-        // else if (!employee) router.replace("/auth/completeProfile");
-      }
-    }, [loading, session?.user, employee])
-  );
+  useEffect(() => {
+    let active = true;
 
-
-  const initAuth = async () => {
-
-    await initFromStorage();
-    
-    console.log("Auth no storage, intentando obtenerlo")
-    const { data: { session } } = await supabase.auth.getSession();
-    setSession(session ?? null);
-    if (session?.user) {
-      await fetchEmployee(session.user.id);
-    } else {
-      setEmployee(null);
-    }
-    setLoading(false);
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session ?? null);
-      if (session?.user) {
-        await fetchEmployee(session.user.id);
-        await AsyncStorage.setItem("session", JSON.stringify(session));
-      } else {
-        setEmployee(null);
-        await AsyncStorage.removeItem("session");
-        await AsyncStorage.removeItem("employee");
-      }
+    // supabase-js (v2) ejecuta el callback de onAuthStateChange dentro de su
+    // lock interno: hacer await a otra llamada de supabase desde ahi puede
+    // bloquearse. Por eso aqui solo guardamos la sesion y cargamos el empleado
+    // en un efecto aparte.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
+      if (active) setSession(next ?? null);
     });
 
-    // Guardamos los datos si los tenemos
-    if (session) await AsyncStorage.setItem("session", JSON.stringify(session));
-    if (employee) await AsyncStorage.setItem("employee", JSON.stringify(employee));
-
-    return () => subscription.unsubscribe();
-  }
-
-  const initFromStorage = async () => {
-    try {
-      // Intenta leer del AsyncStorage
-      const storedSession = await AsyncStorage.getItem("session");
-      const storedEmployee = await AsyncStorage.getItem("employee");
-
-      if (storedSession) {
-        setSession(JSON.parse(storedSession));
+    (async () => {
+      try {
+        const { data: { session: initial } } = await supabase.auth.getSession();
+        if (!active) return;
+        setSession(initial ?? null);
+        if (initial?.user) await fetchEmployee(initial.user.id);
+      } catch (e) {
+        console.error("Error iniciando la sesion", e);
+      } finally {
+        if (active) setLoading(false);
       }
-      if (storedEmployee) {
-        setEmployee(JSON.parse(storedEmployee));
-      }
+    })();
 
-      // No hacemos early return: siempre validamos con Supabase
-      return false;
-    } catch (error) {
-      console.error("Error intendando leer los datos de session en Async")
-      return false;
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [fetchEmployee]);
+
+  // Cuando cambia el usuario (login / logout / refresh de otro usuario) se
+  // recarga o se limpia el empleado.
+  const userId = session?.user?.id;
+  useEffect(() => {
+    if (loading) return;
+    if (!userId) {
+      setEmployee(null);
+      setCheckedFor(null);
+      return;
     }
+    fetchEmployee(userId);
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  }
+  // Guardia de rutas
+  useEffect(() => {
+    if (loading || !navState?.key) return;
+    if (userId && checkedFor !== userId) return; // aun consultando el empleado
+    const target = routeForState({ pathname, hasSession: !!userId, hasEmployee: !!employee });
+    if (target) router.replace(target as any);
+  }, [loading, navState?.key, pathname, userId, checkedFor, employee?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchEmployee = async (userId?: string) => {
-    const id = userId ?? session?.user?.id;
-    if (id) {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("*")
-        .eq("id_user", id)
-        .single();
-
-      if (error) {
-        console.error("Error fetching employee data:", error);
-        setEmployee(null);
-        return;
-      }
-      console.log("Fetch de data hecho con exito", data)
-      setEmployee(data);
-      await AsyncStorage.setItem("employee", JSON.stringify(data));
-      
-      return data;
-    }
-  };
-
-  if (loading)
-    return (
-      <Spinner
-        // color="#3B82F6" // azul Gluestack por defecto
-        // size={50}       // tamaño del ActivityIndicator
-      />
-    );
+  if (loading) return <Spinner />;
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, employee: employee ?? null, loading, fetchEmployee, setEmployee }}
+      value={{ session, user: session?.user ?? null, employee, loading, fetchEmployee, setEmployee }}
     >
       {children}
     </AuthContext.Provider>

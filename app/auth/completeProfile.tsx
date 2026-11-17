@@ -7,27 +7,24 @@ import { Button, ButtonText } from "@/components/ui/button";
 import { supabase } from "@/utils/supabase";
 import { Box } from "@/components/ui/box";
 import useAuth from "@/context/useAuth"
-import { useRouter } from "expo-router";
 import { EmployeePlain, OrganizationPlain } from "@/constants/types";
 
 const completeProfile = () => {
   const [code, setCode] = useState("");
   const [isValidated, setIsValidated] = useState(false);
 
-  const { employee, user } = useAuth();
+  const { user, fetchEmployee } = useAuth();
   const [organization, setOrganization] = useState<OrganizationPlain | null>(null);
-  const [employeeToCreate, setEmployeeToCreate] = useState<Partial<EmployeePlain>>({});
-  const [isInvalid, setIsInvalid] = useState(false);
+  const isInvalid = false;
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const toast = useToast();
-  const router = useRouter();
 
 
   const [isValidating, setIsValidating] = useState(false);
   const validateCode = async () => {
     try {
       const input = code?.trim();
-      console.log("Validando código:", input);
       if (!input) {
         showErrorToast("Introduce un código de empresa");
         return;
@@ -40,7 +37,6 @@ const completeProfile = () => {
         .eq('VAT_number', input)
         .maybeSingle();
 
-      console.log("Resultado Organization:", org, error);
       if (error) {
         showErrorToast(error.message);
         setOrganization(null);
@@ -52,6 +48,7 @@ const completeProfile = () => {
         setOrganization(org as OrganizationPlain);
         setIsValidated(true);
       } else {
+        setOrganization(null);
         showErrorToast("No se encontró organización para ese código");
       }
     } catch (e: any) {
@@ -63,56 +60,59 @@ const completeProfile = () => {
   }
 
   const saveData = async () => {
-    console.log(name);
-    console.log(user);
+    const cleanName = name.trim();
+    if (!user || !organization) {
+      showErrorToast("Falta validar el código de empresa", "No se pudo guardar");
+      return;
+    }
+    if (!cleanName) {
+      showErrorToast("Introduce tu nombre", "Falta el nombre");
+      return;
+    }
+    if (saving) return;
 
-    if(user && organization && name) {
-      setEmployeeToCreate(prev => ({ // Por si lo necesito despues
-        ...prev,
-        name: name,
-        id_organization: organization.id,
-        id_user: user.id,
-        is_admin: false,
-      }));  
+    setSaving(true);
+    try {
       const employee: Partial<EmployeePlain> = {
-        name,
+        name: cleanName,
         id_organization: organization.id,
         id_user: user.id,
         is_admin: false,
       };
-      const insertedEmployee = await submitEmployee(employee);
-      if (insertedEmployee) 
-        router.replace("/auth/login");
-    } else {
-      console.error("Falta algun dato")
+      const inserted = await submitEmployee(employee);
+      if (!inserted) {
+        showErrorToast("No se pudo crear tu perfil. Inténtalo de nuevo", "No se pudo guardar");
+        return;
+      }
+      // Cargar el empleado en el contexto: el guardia de rutas te lleva a la home.
+      await fetchEmployee(user.id);
+    } finally {
+      setSaving(false);
     }
-}
+  };
 
   const submitEmployee = async (employee: Partial<EmployeePlain>) => {
-    
     const { data, error } = await supabase
       .from('employees')
-      .insert([
-        // { some_column: 'someValue', other_column: 'otherValue' },
-        employee
-      ])
-      .select().single();
-    
-      if (error) {
-        console.error(error.message);
-        return null;
-      }
-      return data;
-  }
+      .insert([employee])
+      .select()
+      .single();
 
-  const showErrorToast = (message = "") => {
+    if (error) {
+      console.error(error.message);
+      return null;
+    }
+    return data;
+  };
+
+  const showErrorToast = (message = "", title = "Código incorrecto") => {
     toast.show({
       placement: "top",
       duration: 3000,
       render: ({ id }) => {
         return (
           <Toast nativeID={id} action="error" variant="solid">
-            <ToastTitle>Código incorrecto</ToastTitle>
+            <ToastTitle>{title}</ToastTitle>
             <ToastDescription>{message}</ToastDescription>
           </Toast>
         );
@@ -132,12 +132,13 @@ const completeProfile = () => {
             <UIFormControl isRequired isInvalid={isInvalid} className="mb-4">
               <Input>
                 <InputField
+                  testID="profile-code"
                   value={code}
                   onChangeText={setCode}
                   placeholder="Código de empresa"
                 />
               </Input>
-              <Button onPress={validateCode} className="mt-3" isDisabled={isValidating}>
+              <Button onPress={validateCode} className="mt-3" isDisabled={isValidating} testID="profile-validate">
                 <ButtonText>Validar código de empresa</ButtonText>
               </Button>
             </UIFormControl>
@@ -145,14 +146,15 @@ const completeProfile = () => {
             <UIFormControl isRequired isInvalid={isInvalid} className="space-y-4">
               <Input>
                 <InputField
+                  testID="profile-name"
                   value={name}
                   onChangeText={setName}
                   placeholder="Nombre"
                 />
               </Input>
 
-              <Button onPress={saveData}>
-                <ButtonText>Guardar</ButtonText>
+              <Button onPress={saveData} isDisabled={saving} testID="profile-save">
+                <ButtonText>{saving ? "Guardando..." : "Guardar"}</ButtonText>
               </Button>
             </UIFormControl>
           )}

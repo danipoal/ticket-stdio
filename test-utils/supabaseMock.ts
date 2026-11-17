@@ -39,10 +39,10 @@ export function createSupabaseMock() {
   };
 
   const auth = {
-    signInWithPassword: jest.fn(),
-    signUp: jest.fn(),
+    signInWithPassword: jest.fn<Promise<any>, any[]>(),
+    signUp: jest.fn<Promise<any>, any[]>(),
     signOut: jest.fn(async () => ({ error: null })),
-    getSession: jest.fn(async () => ({ data: { session: null } })),
+    getSession: jest.fn(async (): Promise<any> => ({ data: { session: null } })),
     onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: jest.fn() } } })),
   };
 

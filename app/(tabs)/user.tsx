@@ -2,7 +2,6 @@ import { Box, Text, VStack, Heading, Center, Avatar, HStack, Icon, Divider } fro
 import useAuth from "@/context/useAuth"
 import { Button, ButtonText } from "@/components/ui/button";
 import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/utils/supabase";
 import { useEffect, useMemo, useState } from "react";
 import { Mail, Shield, CalendarClock, Building2, IdCard, LogOut } from "lucide-react-native";
@@ -46,10 +45,7 @@ export default function UserScreen() {
   }
 
   const logOut = async () => {
-    console.log("Log out");
     await supabase.auth.signOut();
-    await AsyncStorage.removeItem("session");
-    await AsyncStorage.removeItem("employee");
     router.replace("/auth/login");
   };
 

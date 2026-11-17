@@ -6,11 +6,12 @@ import {
   Keyboard,
   StyleSheet,
 } from "react-native";
-import { Box, Input, Button,  Text, VStack } from "@gluestack-ui/themed";
+import { Text } from "@gluestack-ui/themed";
 
 import { useForm, Controller } from "react-hook-form";
 import { useRouter } from "expo-router";
 import { signin } from "@/utils/supabase";
+import { isValidEmail, MIN_PASSWORD_LENGTH } from "@/utils/validation";
 
 
 
@@ -30,67 +31,61 @@ const Signin = () => {
     defaultValues: { email: "", password: "", rememberme: false },
   });
 
-  const [validated, setValidated] = useState({
-    emailValid: true,
-    passwordValid: true,
-  });
-
-  const validateEmail = (email: string) => {
-    // Validación básica de email
-    return /\S+@\S+\.\S+/.test(email);
-  };
+  const [submitting, setSubmitting] = useState(false);
+  const [formMessage, setFormMessage] = useState<{ kind: "error" | "info"; text: string } | null>(null);
 
   const redirectLogIn = () => {
     router.push("/auth/login");
   }
 
   const onSubmit = async (data: any) => {
-    // navigation.navigate("Home");
-
-
+    if (submitting) return;
     clearErrors();
+    setFormMessage(null);
     let valid = true;
 
     if (!data.email) {
-      setError("email", { type: "required", message: "Email is required" });
+      setError("email", { type: "required", message: "El email es obligatorio" });
       valid = false;
-    } else if (!validateEmail(data.email)) {
-      setError("email", { type: "pattern", message: "Email is invalid" });
+    } else if (!isValidEmail(data.email)) {
+      setError("email", { type: "pattern", message: "El email no es válido" });
       valid = false;
     }
 
     if (!data.password) {
+      setError("password", { type: "required", message: "La contraseña es obligatoria" });
+      valid = false;
+    } else if (data.password.length < MIN_PASSWORD_LENGTH) {
       setError("password", {
-        type: "required",
-        message: "Password is required",
+        type: "minLength",
+        message: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`,
       });
       valid = false;
     }
 
     if (!valid) return;
 
-    // const user = USERS.find((u) => u.email === data.email);
-    setValidated({ emailValid: true, passwordValid: true });
-
-    
-    const result = await signin(data.email, data.password)
-
-
-    if (!result) {
-    //   setValidated({ emailValid: false, passwordValid: true });
-    //   setError("email", { type: "manual", message: "Email not found" });
-      console.log("ERROR in login")
-      return;
+    setSubmitting(true);
+    try {
+      const result = await signin(data.email, data.password);
+      if (!result.ok) {
+        setFormMessage({ kind: "error", text: result.message });
+        return;
+      }
+      if (result.needsConfirmation) {
+        // Sin sesión todavía: hay que confirmar el email antes de poder entrar.
+        setFormMessage({
+          kind: "info",
+          text: "Cuenta creada. Revisa tu correo y confirma el email; después inicia sesión.",
+        });
+        reset();
+        return;
+      }
+      // Con sesión, el guardia de rutas lleva a completar el perfil.
+      reset();
+    } finally {
+      setSubmitting(false);
     }
-
-    // if (result.password !== data.password) {
-    //   setValidated({ emailValid: true, passwordValid: false });
-    //   setError("password", { type: "manual", message: "Password incorrect" });
-    //   return;
-    // }
-
-    router.push("/auth/completeProfile");
-    reset();
   };
 
   const [showPassword, setShowPassword] = useState(false);
@@ -104,14 +99,15 @@ const Signin = () => {
         <Controller
           control={control}
           name="email"
-          rules={{ required: true }}
+          rules={{ required: "El email es obligatorio" }}
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
               style={[
                 styles.input,
                 errors.email ? styles.inputError : undefined,
               ]}
-              placeholder="Enter email"
+              testID="signin-email"
+              placeholder="Introduce email"
               onBlur={onBlur}
               onChangeText={onChange}
               value={value}
@@ -125,17 +121,14 @@ const Signin = () => {
         {errors.email && (
           <Text style={styles.errorText}>{errors.email.message}</Text>
         )}
-        {!validated.emailValid && (
-          <Text style={styles.errorText}>Email ID not found</Text>
-        )}
       </View>
 
       <View style={styles.formControl}>
-        <Text>Password</Text>
+        <Text>Contraseña</Text>
         <Controller
           control={control}
           name="password"
-          rules={{ required: true }}
+          rules={{ required: "La contraseña es obligatoria" }}
           render={({ field: { onChange, onBlur, value } }) => (
             <View style={styles.passwordContainer}>
               <TextInput
@@ -144,13 +137,14 @@ const Signin = () => {
                   styles.passwordInput,
                   errors.password ? styles.inputError : undefined,
                 ]}
-                placeholder="Enter password"
+                testID="signin-password"
+                placeholder="Introduce contraseña"
                 onBlur={onBlur}
                 onChangeText={onChange}
                 value={value}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                onSubmitEditing={Keyboard.dismiss}
+                onSubmitEditing={handleSubmit(onSubmit)}
                 returnKeyType="done"
               />
               <TouchableOpacity
@@ -165,17 +159,25 @@ const Signin = () => {
         {errors.password && (
           <Text style={styles.errorText}>{errors.password.message}</Text>
         )}
-        {!validated.passwordValid && (
-          <Text style={styles.errorText}>Password was incorrect</Text>
-        )}
       </View>
 
+      {formMessage && (
+        <Text
+          testID="signin-message"
+          style={formMessage.kind === "error" ? styles.errorText : styles.infoText}
+        >
+          {formMessage.text}
+        </Text>
+      )}
+
       <TouchableOpacity
-        style={styles.button}
+        style={[styles.button, submitting ? { opacity: 0.6 } : undefined]}
         onPress={handleSubmit(onSubmit)}
+        disabled={submitting}
         activeOpacity={0.8}
+        testID="signin-submit"
       >
-        <Text style={styles.buttonText}>Crear cuenta</Text>
+        <Text style={styles.buttonText}>{submitting ? "Creando..." : "Crear cuenta"}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -186,17 +188,6 @@ const Signin = () => {
         <Text style={styles.buttonText}>Inicia sesión</Text>
       </TouchableOpacity>
 
-    {/* <Box flex={1} justifyContent="center" alignItems="center" bg="$backgroundLight0" p="$4">
-      <Text size="xl" fontWeight="$bold" mb="$4">
-        Bienvenido
-      </Text>
-
-      <Input placeholder="Email" mb="$4" />
-
-      <Button onPress={() => console.log("Clicked")}>
-        <Text color="$white">Entrar</Text>
-      </Button>
-    </Box> */}
     </View>
   );
 };
@@ -223,6 +214,10 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "red",
+    marginTop: 5,
+  },
+  infoText: {
+    color: "#166534",
     marginTop: 5,
   },
   passwordContainer: {
