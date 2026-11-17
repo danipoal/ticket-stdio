@@ -8,11 +8,26 @@
     "android": "DARK_MODE=media expo start --android",
     "ios": "DARK_MODE=media expo start --ios",
     "web": "DARK_MODE=media expo start --web",
-    "test": "jest --watchAll",
-    "lint": "expo lint"
+    "test": "jest",
+    "lint": "expo lint",
+    "test:watch": "jest --watchAll",
+    "typecheck": "tsc --noEmit"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/dist/"
+    ],
+    "collectCoverageFrom": [
+      "utils/**/*.ts",
+      "app/**/*.{ts,tsx}",
+      "components/custom/**/*.tsx",
+      "context/**/*.{ts,tsx}"
+    ]
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.2",
