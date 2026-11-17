@@ -39,6 +39,8 @@ import { supabase } from "@/utils/supabase";
 import { ExpenseLinePlain, ExpenseSheet } from "@/constants/types";
 import useAux from "@/context/useAux";
 import { SheetStatusID } from "@/constants/constants";
+import { formatAmount, formatDateSafe, todayIso } from "@/utils/format";
+import { validateLine } from "@/utils/validation";
 
 type SheetViewProps = {
   sheet: ExpenseSheet;
@@ -48,12 +50,17 @@ type SheetViewProps = {
 export default function SheetView({ sheet, onClose }: SheetViewProps) {
   const [lines, setLines] = useState<ExpenseLinePlain[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  // listError: fallo al cargar las lineas (sustituye a la lista).
+  // actionError: fallo de una accion (borrar, subir foto...), se muestra como aviso
+  // sin ocultar la lista. formErrors: errores de validacion por campo.
+  const [listError, setListError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const [createOpen, setCreateOpen] = useState<boolean>(false);
   const [title, setTitle] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
-  const [date, setDate] = useState<string | null>(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string | null>(todayIso());
   const [tax, setTax] = useState<string>("21");
   const [idPaymentType, setIdPaymentType] = useState<string>("");
   const [idCategory, setIdCategory] = useState<string>("");
@@ -74,7 +81,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
   const fetchExpenseLines = async () => {
     console.log("Fetch ExpenseLines")
     setLoading(true);
-    setError(null);
+    setListError(null);
 
     const { data, error } = await supabase
       .from("Expense_line")
@@ -82,7 +89,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
       .eq("id_sheet", String(sheet.id));
 
     if (error) {
-      setError("Error cargando líneas de gasto");
+      setListError("Error cargando líneas de gasto");
       setLines([]);
     } else {
       setLines((data ?? []) as ExpenseLinePlain[]);
@@ -99,7 +106,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
         .update({ id_status: String(newStatusId) })
         .eq("id", sheet.id);
       if (error) {
-        setError("No se pudo actualizar el estado de la hoja");
+        setActionError("No se pudo actualizar el estado de la hoja");
         return;
       }
       setStatusId(newStatusId);
@@ -126,7 +133,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
       try {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== "granted") {
-          setError("Permiso denegado para acceder a la galería");
+          setActionError("Permiso denegado para acceder a la galería");
           return;
         }
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -140,16 +147,27 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
           setSelectedPhotoFile(null); // usaremos fetch->blob en móvil
         }
       } catch (e) {
-        setError("Para adjuntar fotos en móvil, instala expo-image-picker");
+        setActionError("No se pudo abrir la galería");
       }
     }
   };
 
   const handleCreateLine = async () => {
-    if (!title || !idPaymentType || !idCategory) {
-      setError("Rellena título, tipo de pago y categoría");
+    setActionError(null);
+    const validation = validateLine({
+      title,
+      amount,
+      tax,
+      date,
+      idPaymentType,
+      idCategory,
+      idSheet: sheet.id,
+    });
+    if (!validation.ok) {
+      setFormErrors(validation.errors as Record<string, string>);
       return;
     }
+    setFormErrors({});
     // Subir foto a Supabase Storage si hay selección
     let finalFotoUrl = foto?.trim() || undefined;
     if (selectedPhotoUri || selectedPhotoFile) {
@@ -174,22 +192,13 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
         finalFotoUrl = data.publicUrl;
         setFoto(finalFotoUrl || "");
       } catch (e) {
-        setError("Error subiendo la foto");
+        setActionError("Error subiendo la foto");
       } finally {
         setUploadingPhoto(false);
       }
     }
 
-    const payload: ExpenseLinePlain = {
-      title,
-      amount: amount ? Number(amount) : undefined,
-      date: date ?? null,
-      tax: Number(tax || "0"),
-      foto: finalFotoUrl || undefined,
-      id_payment_type: idPaymentType,
-      id_category: idCategory,
-      id_sheet: String(sheet.id),
-    };
+    const payload: ExpenseLinePlain = { ...validation.payload, foto: finalFotoUrl || undefined };
 
     const { error } = await supabase
       .from("Expense_line")
@@ -197,14 +206,14 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
       .select();
 
     if (error) {
-      setError("Error creando la línea de gasto");
+      setActionError("Error creando la línea de gasto");
       return;
     }
 
     // Reset form y refrescar lista
     setTitle("");
     setAmount("");
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(todayIso());
     setTax("21");
     setIdPaymentType("");
     setIdCategory("");
@@ -213,13 +222,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
     fetchExpenseLines();
   };
 
-  const formatDate = (d: string) => {
-    try {
-      return new Date(d).toLocaleDateString();
-    } catch {
-      return d;
-    }
-  };
+  const formatDate = formatDateSafe;
 
   const handleDownload = async (url?: string | null) => {
     if (!url) return;
@@ -227,7 +230,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
       try {
         await WebBrowser.openBrowserAsync(url);
       } catch {
-        setError('No se pudo abrir el adjunto');
+        setActionError('No se pudo abrir el adjunto');
       }
       return;
     }
@@ -252,11 +255,18 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
         return;
       }
 
-      Linking.openURL(dest).catch(() => setError('Archivo descargado, pero no se pudo abrir.'));
+      Linking.openURL(dest).catch(() => setActionError('Archivo descargado, pero no se pudo abrir.'));
     } catch {
-      setError('No se pudo descargar el adjunto');
+      setActionError('No se pudo descargar el adjunto');
     }
   };
+
+  const FieldError = ({ name }: { name: string }) =>
+    formErrors[name] ? (
+      <Text color="$red600" fontSize="$sm" testID={`error-${name}`}>
+        {formErrors[name]}
+      </Text>
+    ) : null;
 
   return (
     <Box flex={1} w="$full" alignItems="center" justifyContent="center">
@@ -302,7 +312,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
           </HStack>
           <HStack space="md" justifyContent="center">
             <Text>
-              Total: <Text fontWeight="$bold">{sheet.total_amount} €</Text>
+              Total: <Text fontWeight="$bold">{formatAmount(sheet.total_amount)} €</Text>
             </Text>
             <Text color="$coolGray600">
               Creado: {formatDate(sheet.create_date)}
@@ -324,7 +334,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                 <Icon as={XCircle} />
               </Button>
             )}
-            {statusId == SheetStatusID.PENDIENTE && (<Button onPress={() => setCreateOpen((x) => !x)}>
+            {statusId == SheetStatusID.PENDIENTE && (<Button testID="add-line" onPress={() => setCreateOpen((x) => !x)}>
               <Icon as={Plus} mr="$2" />
               <ButtonText>Añadir línea</ButtonText>
             </Button>)}
@@ -345,8 +355,9 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                   <FormControlLabelText>Título</FormControlLabelText>
                 </FormControlLabel>
                 <Input>
-                  <InputField value={title} onChangeText={setTitle} placeholder="Título del gasto" />
+                  <InputField testID="line-title" value={title} onChangeText={setTitle} placeholder="Título del gasto" />
                 </Input>
+                <FieldError name="title" />
               </FormControl>
 
               <HStack space="md">
@@ -355,16 +366,18 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                     <FormControlLabelText>Importe (€)</FormControlLabelText>
                   </FormControlLabel>
                   <Input>
-                    <InputField value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" />
+                    <InputField testID="line-amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0,00" />
                   </Input>
+                  <FieldError name="amount" />
                 </FormControl>
                 <FormControl flex={1}>
                   <FormControlLabel>
                     <FormControlLabelText>IVA (%)</FormControlLabelText>
                   </FormControlLabel>
                   <Input>
-                    <InputField value={tax} onChangeText={setTax} keyboardType="numeric" placeholder="21" />
+                    <InputField testID="line-tax" value={tax} onChangeText={setTax} keyboardType="numeric" placeholder="21" />
                   </Input>
+                  <FieldError name="tax" />
                 </FormControl>
               </HStack>
 
@@ -373,8 +386,9 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                   <FormControlLabelText>Fecha</FormControlLabelText>
                 </FormControlLabel>
                 <Input>
-                  <InputField value={date ?? ""} onChangeText={(t) => setDate(t || null)} placeholder="YYYY-MM-DD" />
+                  <InputField testID="line-date" value={date ?? ""} onChangeText={(t) => setDate(t || null)} placeholder="YYYY-MM-DD" />
                 </Input>
+                <FieldError name="date" />
               </FormControl>
 
               <HStack space="md">
@@ -412,12 +426,14 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                   ) : (
                     <Input>
                       <InputField
+                        testID="line-payment"
                         value={idPaymentType}
                         onChangeText={setIdPaymentType}
                         placeholder="p.ej. 1"
                       />
                     </Input>
                   )}
+                  <FieldError name="idPaymentType" />
                 </FormControl>
 
                 <FormControl flex={1}>
@@ -454,12 +470,14 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                   ) : (
                     <Input>
                       <InputField
+                        testID="line-category"
                         value={idCategory}
                         onChangeText={setIdCategory}
                         placeholder="p.ej. 1"
                       />
                     </Input>
                   )}
+                  <FieldError name="idCategory" />
                 </FormControl>
               </HStack>
 
@@ -485,7 +503,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                 <Button variant="outline" action="secondary" onPress={() => setCreateOpen(false)}>
                   <ButtonText>Cancelar</ButtonText>
                 </Button>
-                <Button onPress={handleCreateLine}>
+                <Button testID="save-line" onPress={handleCreateLine}>
                   <ButtonText>Guardar línea</ButtonText>
                 </Button>
               </HStack>
@@ -494,14 +512,17 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
 
           {/* Estados y lista */}
           {loading && <Text textAlign="center">Cargando líneas...</Text>}
-          {!loading && error && (
-            <Text textAlign="center" color="$red600">{error}</Text>
+          {actionError && (
+            <Text textAlign="center" color="$red600" testID="action-error">{actionError}</Text>
           )}
-          {!loading && !error && lines.length === 0 && (
+          {!loading && listError && (
+            <Text textAlign="center" color="$red600">{listError}</Text>
+          )}
+          {!loading && !listError && lines.length === 0 && (
             <Text textAlign="center">No hay líneas todavía</Text>
           )}
 
-          {!loading && !error && lines.length > 0 && (
+          {!loading && !listError && lines.length > 0 && (
             <>
               {lines.map((line) => (
                 <Box
@@ -519,7 +540,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                       <Heading size="sm">{line.title}</Heading>
                       <HStack space="md">
                         <Text>
-                          Importe: <Text fontWeight="$bold">{line.amount ?? 0} €</Text>
+                          Importe: <Text fontWeight="$bold">{formatAmount(line.amount)} €</Text>
                         </Text>
                         <Text>
                           IVA: <Text fontWeight="$bold">{line.tax}%</Text>
@@ -557,7 +578,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                           if (!error) {
                             fetchExpenseLines();
                           } else {
-                            setError('Error eliminando la línea');
+                            setActionError('Error eliminando la línea');
                           }
                         }}
                         accessibilityLabel="Eliminar línea"
