@@ -9,7 +9,7 @@
  * payload que realmente se envia.
  */
 export type Result = { data?: any; error?: { message: string } | null };
-export type Call = { table: string; op: string; payload?: any; filters: [string, any][] };
+export type Call = { table: string; op: string; payload?: any; filters: [string, any][]; order?: [string, any] };
 
 export function createSupabaseMock() {
   const handlers = new Map<string, Result | ((call: Call) => Result)>();
@@ -25,7 +25,7 @@ export function createSupabaseMock() {
     };
     const chain: any = {
       select: () => chain,
-      order: () => chain,
+      order: (col: string, opts?: any) => ((call.order = [col, opts]), chain),
       insert: (payload: any) => ((call.op = 'insert'), (call.payload = payload), chain),
       update: (payload: any) => ((call.op = 'update'), (call.payload = payload), chain),
       delete: () => ((call.op = 'delete'), chain),
@@ -64,6 +64,7 @@ export function createSupabaseMock() {
     reset: () => {
       handlers.clear();
       calls.length = 0;
+      storageUpload.mockClear();
     },
   };
 }

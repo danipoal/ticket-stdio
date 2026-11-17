@@ -41,13 +41,17 @@ import useAux from "@/context/useAux";
 import { SheetStatusID } from "@/constants/constants";
 import { formatAmount, formatDateSafe, todayIso } from "@/utils/format";
 import { validateLine } from "@/utils/validation";
+import { checkPhoto, safeFileName } from "@/utils/files";
+import { confirmAction } from "@/utils/confirm";
 
 type SheetViewProps = {
   sheet: ExpenseSheet;
   onClose?: () => void;
+  /** Se llama tras cambiar el estado con exito, para que la lista se refresque. */
+  onStatusChange?: (newStatusId: number) => void;
 };
 
-export default function SheetView({ sheet, onClose }: SheetViewProps) {
+export default function SheetView({ sheet, onClose, onStatusChange }: SheetViewProps) {
   const [lines, setLines] = useState<ExpenseLinePlain[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   // listError: fallo al cargar las lineas (sustituye a la lista).
@@ -72,6 +76,12 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
   const [selectedPhotoFile, setSelectedPhotoFile] = useState<any | null>(null);
   const [selectedPhotoName, setSelectedPhotoName] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState<boolean>(false);
+
+  // El estado local debe seguir al de la hoja cuando el padre la refresca o
+  // se abre otra hoja (antes se quedaba con el valor del primer render).
+  useEffect(() => {
+    setStatusId(sheet?.status?.id ?? SheetStatusID.PENDIENTE);
+  }, [sheet?.id, sheet?.status?.id]);
 
   useEffect(() => {
     fetchExpenseLines();
@@ -101,6 +111,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
   const updateSheetStatus = async (newStatusId: number) => {
     try {
       setUpdatingStatus(true);
+      setActionError(null);
       const { error } = await supabase
         .from("Expense_sheet")
         .update({ id_status: String(newStatusId) })
@@ -110,6 +121,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
         return;
       }
       setStatusId(newStatusId);
+      onStatusChange?.(newStatusId);
     } finally {
       setUpdatingStatus(false);
     }
@@ -123,6 +135,12 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
       input.onchange = (e: any) => {
         const file = e.target.files?.[0];
         if (file) {
+          const check = checkPhoto(file);
+          if (!check.ok) {
+            setActionError(check.message);
+            return;
+          }
+          setActionError(null);
           setSelectedPhotoFile(file);
           setSelectedPhotoUri(URL.createObjectURL(file));
           setSelectedPhotoName(file.name);
@@ -168,31 +186,37 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
       return;
     }
     setFormErrors({});
-    // Subir foto a Supabase Storage si hay selección
+    // Subir foto a Supabase Storage si hay seleccion. supabase-js NO lanza
+    // excepcion cuando la subida falla: devuelve { error }. Antes se ignoraba y
+    // se guardaba la URL publica de un fichero que no existia.
     let finalFotoUrl = foto?.trim() || undefined;
     if (selectedPhotoUri || selectedPhotoFile) {
       try {
         setUploadingPhoto(true);
-        const filename = `${Date.now()}_${selectedPhotoName ?? "foto.jpg"}`;
+        const filename = `${Date.now()}_${safeFileName(selectedPhotoName)}`;
         const path = `expense-lines/${sheet.id}/${filename}`;
+        let body: any;
+        let contentType = "image/jpeg";
         if (Platform.OS === "web" && selectedPhotoFile) {
-          await supabase.storage.from("tickets").upload(path, selectedPhotoFile, {
-            contentType: selectedPhotoFile.type || "image/jpeg",
-            upsert: true,
-          });
+          body = selectedPhotoFile;
+          contentType = selectedPhotoFile.type || contentType;
         } else if (selectedPhotoUri) {
           const resp = await fetch(selectedPhotoUri);
-          const blob = await resp.blob();
-          await supabase.storage.from("tickets").upload(path, blob, {
-            contentType: blob.type || "image/jpeg",
-            upsert: true,
-          });
+          body = await resp.blob();
+          contentType = body.type || contentType;
         }
-        const { data } = await supabase.storage.from("tickets").getPublicUrl(path);
+        const { error: uploadError } = await supabase.storage
+          .from("tickets")
+          .upload(path, body, { contentType, upsert: true });
+        if (uploadError) {
+          setActionError("No se pudo subir la foto. La línea no se ha guardado");
+          return;
+        }
+        const { data } = supabase.storage.from("tickets").getPublicUrl(path);
         finalFotoUrl = data.publicUrl;
-        setFoto(finalFotoUrl || "");
       } catch (e) {
-        setActionError("Error subiendo la foto");
+        setActionError("No se pudo subir la foto. La línea no se ha guardado");
+        return;
       } finally {
         setUploadingPhoto(false);
       }
@@ -218,6 +242,11 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
     setIdPaymentType("");
     setIdCategory("");
     setFoto("");
+    // Sin esto la foto de esta linea se volvia a subir y adjuntar a la siguiente.
+    setSelectedPhotoUri(null);
+    setSelectedPhotoFile(null);
+    setSelectedPhotoName(null);
+    setFormErrors({});
     setCreateOpen(false);
     fetchExpenseLines();
   };
@@ -325,12 +354,12 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
           <Heading size="md">Líneas de gasto</Heading>
           <HStack space="sm" alignItems="center">
             {statusId !== SheetStatusID.APROBADO && (
-              <Button action="positive" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.APROBADO)}>
+              <Button testID="approve-sheet" action="positive" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.APROBADO)}>
                 <Icon as={CheckCircle2} />
               </Button>
             )}
             {statusId !== SheetStatusID.RECHAZADO && (
-              <Button action="negative" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.RECHAZADO)}>
+              <Button testID="reject-sheet" action="negative" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.RECHAZADO)}>
                 <Icon as={XCircle} />
               </Button>
             )}
@@ -486,7 +515,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                   <FormControlLabelText>Foto</FormControlLabelText>
                 </FormControlLabel>
                 <HStack space="sm" alignItems="center">
-                  <Button variant="outline" onPress={handleAttachPhoto} isDisabled={uploadingPhoto}>
+                  <Button testID="attach-photo" variant="outline" onPress={handleAttachPhoto} isDisabled={uploadingPhoto}>
                     <ButtonText>Adjuntar imagen</ButtonText>
                   </Button>
                   {selectedPhotoName ? (
@@ -568,9 +597,13 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                           </HStack>
                         </Pressable>
                       )}
+                      {statusId === SheetStatusID.PENDIENTE && (
                       <Pressable
+                        testID={`delete-line-${line.id}`}
                         onPress={async () => {
                           if (!line.id) return;
+                          const ok = await confirmAction("Eliminar línea", `¿Eliminar "${line.title}"?`);
+                          if (!ok) return;
                           const { error } = await supabase
                             .from('Expense_line')
                             .delete()
@@ -587,6 +620,7 @@ export default function SheetView({ sheet, onClose }: SheetViewProps) {
                       >
                         <Icon as={Trash2} size="lg" color="$coolGray700" />
                       </Pressable>
+                      )}
                     </HStack>
                   </HStack>
                 </Box>

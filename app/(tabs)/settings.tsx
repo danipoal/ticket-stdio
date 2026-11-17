@@ -134,7 +134,7 @@ export default function SettingsScreen() {
               ) : (
                 rows.map((r) => (
                   <HStack key={r.id_user} p={4} borderBottomWidth={1} borderColor="$coolGray100" alignItems="center">
-                    <Text flex={2}>{userNames[r.name] ?? r.name}</Text>
+                    <Text flex={2}>{userNames[r.id_user] ?? r.name}</Text>
                     <Text flex={1} textAlign="right">{r.total_expense_sheets}</Text>
                     <Text flex={1} textAlign="right">{r.total_expense_lines}</Text>
                     <Text flex={1} textAlign="right">{r.approved_sheets}</Text>
