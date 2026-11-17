@@ -1,0 +1,62 @@
+/**
+ * Convierte texto escrito por un usuario en un numero.
+ * Acepta coma o punto decimal ("12,50" y "12.50") y separador de miles
+ * ("1.234,56" / "1,234.56"). Devuelve null si esta vacio o no es un numero.
+ *
+ * Importante: Number("12,50") es NaN y JSON.stringify(NaN) es null, asi que
+ * antes un importe con coma se guardaba como NULL sin avisar.
+ */
+export function parseDecimal(input: string | number | null | undefined): number | null {
+  if (input === null || input === undefined) return null;
+  if (typeof input === 'number') return Number.isFinite(input) ? input : null;
+
+  let s = input.trim().replace(/\s+/g, '');
+  if (s === '') return null;
+
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma !== -1 && lastDot !== -1) {
+    // El ultimo separador es el decimal; el otro es de miles.
+    const decimalSep = lastComma > lastDot ? ',' : '.';
+    const thousandsSep = decimalSep === ',' ? '.' : ',';
+    s = s.split(thousandsSep).join('').replace(decimalSep, '.');
+  } else if (lastComma !== -1) {
+    // Una sola coma: decimal. Varias comas: miles ("1,234,567").
+    s = s.indexOf(',') === lastComma ? s.replace(',', '.') : s.split(',').join('');
+  }
+
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** true si es una fecha real YYYY-MM-DD (rechaza 2025-02-30, 2025-13-01...). */
+export function isValidIsoDate(value: string | null | undefined): boolean {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return (
+    date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
+  );
+}
+
+/** Fecha local legible, o "-" si falta o no es valida (antes: "Invalid Date"). */
+export function formatDateSafe(value: string | null | undefined): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString();
+}
+
+/** Importe con 2 decimales y coma/punto segun el locale. null/NaN -> 0,00. */
+export function formatAmount(value: number | string | null | undefined): string {
+  const n = typeof value === 'string' ? parseDecimal(value) : value;
+  const safe = typeof n === 'number' && Number.isFinite(n) ? n : 0;
+  return safe.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function todayIso(now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
