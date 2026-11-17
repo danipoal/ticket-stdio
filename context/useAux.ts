@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { AuxContext } from "./AuxContext";
+import { AuxContext } from "@/context/AuxContext";
 
 const useAux = () => {
   const ctx = useContext(AuxContext);

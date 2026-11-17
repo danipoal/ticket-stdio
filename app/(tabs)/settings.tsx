@@ -1,7 +1,7 @@
 import { Box, Text, VStack, Heading, HStack, Center, Icon } from "@gluestack-ui/themed";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/utils/supabase";
-import useAuth from "@/app/auth/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { FileText, ListOrdered, CheckCircle2, Hourglass, XCircle, Euro, UserRound } from "lucide-react-native";
 import { DashboardStats } from "@/constants/types";
 

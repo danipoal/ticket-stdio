@@ -1,6 +1,6 @@
 import React, { createContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/utils/supabase";
-import useAuth from "@/app/auth/context/useAuth";
+import useAuth from "@/context/useAuth";
 
 type SimpleItem = { id: number | string; name: string };
 

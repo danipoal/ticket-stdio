@@ -1,5 +1,5 @@
 import { Box, Text, VStack, Heading, Center, Avatar, HStack, Icon, Divider } from "@gluestack-ui/themed"
-import useAuth from "../auth/context/useAuth"
+import useAuth from "@/context/useAuth"
 import { Button, ButtonText } from "@/components/ui/button";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";

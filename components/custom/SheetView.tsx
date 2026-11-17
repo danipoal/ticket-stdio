@@ -37,7 +37,7 @@ import * as WebBrowser from "expo-web-browser";
 import { X, Plus, Trash2, CheckCircle2, XCircle, Download } from "lucide-react-native";
 import { supabase } from "@/utils/supabase";
 import { ExpenseLinePlain, ExpenseSheet } from "@/constants/types";
-import useAux from "@/app/auxdata/context/useAux";
+import useAux from "@/context/useAux";
 import { SheetStatusID } from "@/constants/constants";
 
 type SheetViewProps = {

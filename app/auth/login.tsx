@@ -11,7 +11,7 @@ import { useForm, Controller } from "react-hook-form";
 import { useRouter } from "expo-router";
 import { login } from "@/utils/supabase";
 import { Toast, ToastDescription, ToastTitle, useToast } from "@gluestack-ui/themed";
-import useAuth from "./context/useAuth";
+import useAuth from "@/context/useAuth";
 
 
 

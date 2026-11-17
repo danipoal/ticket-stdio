@@ -36,8 +36,8 @@ import {
 import { Calendar } from "react-native-calendars";
 import { X, RotateCcw } from "lucide-react-native";
 import { ExpenseSheetPlain } from "@/constants/types";
-import useAuth from "@/app/auth/context/useAuth";
-import useAux from "@/app/auxdata/context/useAux";
+import useAuth from "@/context/useAuth";
+import useAux from "@/context/useAux";
 
 type CreateSheetViewProps = {
   onClose?: () => void;
