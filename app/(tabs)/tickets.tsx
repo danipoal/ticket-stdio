@@ -7,7 +7,7 @@ import useAuth from "@/context/useAuth";
 import { supabase } from "@/utils/supabase";
 import { useEffect, useState } from "react";
 import { ExpenseSheet, ExpenseSheetPlain } from "@/constants/types";
-import { SheetStatusID } from "@/constants/constants";
+import { confirmAction } from "@/utils/confirm";
 
 export default function TicketsScreen() {
   const { employee } = useAuth();
@@ -15,73 +15,84 @@ export default function TicketsScreen() {
   const [loading, setLoading] = useState(true);
   const [createSheetView, setCreateSheetView] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<ExpenseSheet | null>(null);
 
 
   useEffect(() => {
-    if (!employee?.id){
-      console.error("No hay employee aun.")
+    if (!employee?.id) {
+      // Sin ficha de empleado no hay nada que cargar; antes se quedaba en
+      // "Cargando tickets..." para siempre.
+      setSheets([]);
+      setLoading(false);
       return;
     }
-
     fetchExpenseSheets();
   }, [employee?.id]);
 
-  const fetchExpenseSheets = async () => {
+  const fetchExpenseSheets = async (): Promise<ExpenseSheet[]> => {
     setLoading(true);
     setError(null);
 
     const { data, error } = await supabase
       .from("expense_sheet_with_total")
       .select("*")
-      .eq("id_user", employee?.id);
+      .eq("id_user", employee?.id)
+      .order("create_date", { ascending: false });
 
+    let list: ExpenseSheet[] = [];
     if (error) {
       setError("Error cargando tickets");
       setSheets([]);
     } else {
-      setSheets(data ?? []);
-      console.log(data);
+      list = (data ?? []) as ExpenseSheet[];
+      setSheets(list);
+      // Mantener la hoja abierta sincronizada (estado/total actualizados)
+      setSelectedSheet((prev) => (prev ? list.find((s) => s.id === prev.id) ?? null : null));
     }
 
     setLoading(false);
+    return list;
   };
 
-  const deleteSheet = async (id: number) => {
+  const deleteSheet = async (sheet: ExpenseSheet) => {
+    setActionError(null);
+    // Borrar una hoja borra tambien sus lineas: pedimos confirmacion.
+    const ok = await confirmAction(
+      "Eliminar hoja",
+      `¿Eliminar "${sheet.title}" y todas sus líneas? Esta acción no se puede deshacer.`
+    );
+    if (!ok) return;
+
     const { error } = await supabase
       .from('Expense_sheet')
       .delete()
-      .eq('id', id);
+      .eq('id', sheet.id);
 
     if (error) {
-      console.error("Error eliminando el Sheet", error);
+      setActionError("No se pudo eliminar la hoja");
       return;
     }
 
-    // Si estaba abierta esta hoja, cerrarla
-    setSelectedSheet((prev) => (prev?.id === id ? null : prev));
-    // Refrescar listado
+    setSelectedSheet((prev) => (prev?.id === sheet.id ? null : prev));
     fetchExpenseSheets();
   };
 
-  const onCreateSheet = async (values: ExpenseSheetPlain) => {
-    console.log("Crear hoja con:", values);
-
-    if (values.approval_date == "") 
-      values.approval_date = null;
-
-    const { data, error } = await supabase
+  // Devuelve un mensaje de error (el formulario sigue abierto) o null si fue bien.
+  const onCreateSheet = async (values: ExpenseSheetPlain): Promise<string | null> => {
+    const { error } = await supabase
       .from('Expense_sheet')
       .insert(values)
-      .select().single();
-    
-    if (error) {
-      console.error("Error al crear el Sheet");
-    } else {
-      fetchExpenseSheets()
-    }
+      .select()
+      .single();
 
-  }
+    if (error) {
+      return "No se pudo crear la hoja. Inténtalo de nuevo";
+    }
+    setCreateSheetView(false);
+    fetchExpenseSheets();
+    return null;
+  };
 
   return (
   <Box flex={1} bg="$backgroundLight50">
@@ -91,7 +102,7 @@ export default function TicketsScreen() {
           <Heading flex={1} size="xl" textAlign="center">
             Mis Tickets
           </Heading>
-          <AddButton onPress={() => setCreateSheetView(true)} />
+          <AddButton onPress={() => { setSelectedSheet(null); setCreateSheetView(true); }} />
 
           {/* Placeholder para mantener el título centrado */}
           {/* <Box w={40} h={40} /> */}
@@ -99,10 +110,7 @@ export default function TicketsScreen() {
         {createSheetView && (
           <CreateSheetView
             onClose={() => setCreateSheetView(false)}
-            onCreate={(values) => {
-              onCreateSheet(values);
-              setCreateSheetView(false);
-            }}
+            onCreate={onCreateSheet}
           />
         )}
 
@@ -110,7 +118,14 @@ export default function TicketsScreen() {
           <SheetView
             sheet={selectedSheet}
             onClose={() => setSelectedSheet(null)}
+            onStatusChange={() => fetchExpenseSheets()}
           />
+        )}
+
+        {actionError && (
+          <Text textAlign="center" color="$red600" testID="tickets-action-error">
+            {actionError}
+          </Text>
         )}
 
         {loading && (
@@ -123,7 +138,7 @@ export default function TicketsScreen() {
           </Text>
         )}
 
-        {!loading && !error && sheets.length === 0 && (
+        {!loading && !error && !createSheetView && !selectedSheet && sheets.length === 0 && (
           <Text textAlign="center">
             No tienes tickets todavía
           </Text>
@@ -143,7 +158,7 @@ export default function TicketsScreen() {
                 onPress={() => { 
                   setSelectedSheet(sheet);
                 }}
-                onDelete={() => deleteSheet(sheet.id)}
+                onDelete={() => deleteSheet(sheet)}
               />
             ))}
           </ScrollView>

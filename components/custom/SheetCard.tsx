@@ -3,6 +3,7 @@ import { Box, VStack, Heading, Text, Pressable, HStack, Icon } from "@gluestack-
 import { ExpenseSheet } from "@/constants/types";
 import { SheetStatusID } from "@/constants/constants";
 import { Trash2 } from "lucide-react-native";
+import { formatAmount, formatDateSafe } from "@/utils/format";
 
 type SheetCardProps = {
 	sheet: ExpenseSheet;
@@ -12,9 +13,9 @@ type SheetCardProps = {
 
 export default function SheetCard({ sheet, onPress, onDelete }: SheetCardProps) {
 	const bgColor =
-		sheet.status.id == SheetStatusID.APROBADO
+		sheet.status?.id == SheetStatusID.APROBADO
 			? "$green400"
-			: sheet.status.id == SheetStatusID.RECHAZADO
+			: sheet.status?.id == SheetStatusID.RECHAZADO
 			? "$red400"
 			: "$white";
 
@@ -29,7 +30,7 @@ export default function SheetCard({ sheet, onPress, onDelete }: SheetCardProps) 
 			mb={8}
 		>
 			<HStack alignItems="center" justifyContent="space-between" space="md">
-				<Pressable onPress={onPress} accessibilityRole="button" style={{ flex: 1 }}>
+				<Pressable testID="sheet-open" onPress={onPress} accessibilityRole="button" style={{ flex: 1 }}>
 					<VStack space="sm">
 						<Heading size="sm">{sheet.title}</Heading>
 
@@ -44,17 +45,18 @@ export default function SheetCard({ sheet, onPress, onDelete }: SheetCardProps) 
 
 						<HStack space="xs" alignItems="center">
 							<Text>Total:</Text>
-							<Text fontWeight="$bold">{sheet.total_amount} €</Text>
+							<Text fontWeight="$bold">{formatAmount(sheet.total_amount)} €</Text>
 						</HStack>
 
 						<HStack space="xs" alignItems="center">
 							<Text fontSize="$sm" color="$coolGray500">Creado:</Text>
-							<Text fontSize="$sm" color="$coolGray500">{new Date(sheet.create_date).toLocaleDateString()}</Text>
+							<Text fontSize="$sm" color="$coolGray500">{formatDateSafe(sheet.create_date)}</Text>
 						</HStack>
 					</VStack>
 				</Pressable>
 
 				<Pressable
+					testID="sheet-delete"
 					onPress={() => onDelete?.(sheet)}
 					accessibilityLabel="Eliminar hoja"
 					accessibilityRole="button"
