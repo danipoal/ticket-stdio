@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router"
-import { Home, Ticket, Settings, User } from "lucide-react-native"
+import { Home, Ticket, Settings, User, ClipboardCheck } from "lucide-react-native"
 import Sidebar from "@/components/custom/Sidebar"
 import { useBreakpoint } from "@/hooks/useBreakpoint"
 import useAuth from "@/context/useAuth"
@@ -34,6 +34,15 @@ export default function TabLayout() {
         options={{
           title: "Mis Tickets",
           tabBarIcon: ({ color }) => <Ticket size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="approvals"
+        options={{
+          title: "Aprobaciones",
+          // Solo quien aprueba hojas (administradores) ve esta pestaña
+          href: employee?.is_admin ? undefined : null,
+          tabBarIcon: ({ color }) => <ClipboardCheck size={24} color={color} />,
         }}
       />
       <Tabs.Screen

@@ -8,8 +8,8 @@ import { StatusBadge } from './ui';
 
 /** Fila compacta de la lista de hojas (escritorio). */
 export default function SheetListItem({
-  sheet, selected, onPress, onDelete,
-}: { sheet: ExpenseSheet; selected?: boolean; onPress?: () => void; onDelete?: (s: ExpenseSheet) => void }) {
+  sheet, selected, onPress, onDelete, ownerName,
+}: { sheet: ExpenseSheet; selected?: boolean; onPress?: () => void; onDelete?: (s: ExpenseSheet) => void; ownerName?: string }) {
   // El boton de borrar es hermano (no hijo) del boton principal: un <button> dentro de
   // otro <button> es HTML invalido y React lo avisa en la consola.
   return (
@@ -26,10 +26,11 @@ export default function SheetListItem({
           <Text style={s.amount}>{formatAmount(sheet.total_amount)} €</Text>
         </View>
         <Text style={s.sub} numberOfLines={1}>
-          {sheet.project || 'Sin proyecto'} · {formatDateSafe(sheet.create_date)}
+          {ownerName ? `${ownerName} · ` : ''}{sheet.project || 'Sin proyecto'} · {formatDateSafe(sheet.create_date)}
         </Text>
         <StatusBadge statusId={sheet.status?.id} label={sheet.status?.name} />
       </Pressable>
+      {onDelete ? (
       <Pressable
         testID="sheet-delete"
         onPress={() => onDelete?.(sheet)}
@@ -40,6 +41,7 @@ export default function SheetListItem({
       >
         <Trash2 size={16} color={palette.textMuted} />
       </Pressable>
+      ) : null}
     </View>
   );
 }

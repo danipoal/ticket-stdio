@@ -39,6 +39,7 @@ const bad = (errors) => errors.filter((e) => !/favicon|Failed to load resource/i
     check('login lleva a /home', page.url().endsWith('/home'), page.url());
     check('escritorio: barra lateral visible', await has(page, 'sidebar'));
     check('escritorio: empleada no ve la pestaña Equipo', !(await has(page, 'nav-settings')));
+    check('escritorio: empleada no ve la pestaña Aprobaciones', !(await has(page, 'nav-approvals')));
     let t = await textOf(page);
     check('dashboard: saludo y KPI de importe total con miles', t.includes('Hola, Ana') && t.includes('2.662,34 €'), t.slice(0, 80).replace(/\n/g, ' '));
     check('dashboard: graficos y tarjetas presentes', (await has(page, 'bar-chart')) && (await has(page, 'card-category')) && (await has(page, 'card-recent')));
@@ -54,6 +55,7 @@ const bad = (errors) => errors.filter((e) => !/favicon|Failed to load resource/i
     await page.waitForSelector('[data-testid="lines-table-head"]');
     t = await textOf(page);
     check('tickets: detalle con tabla de lineas y nombres de categoria', t.includes('CONCEPTO') && /Transporte|Comidas|Material|Alojamiento|Formación/.test(t));
+    check('tickets: el propietario NO ve Aprobar/Rechazar', !(await has(page, 'approve-sheet')) && !(await has(page, 'reject-sheet')));
     await page.type('[data-testid="sheet-search"]', 'feria');
     await wait(400);
     check('tickets: la busqueda filtra a 1 hoja', (await count()) === 1, String(await count()));
@@ -78,6 +80,18 @@ const bad = (errors) => errors.filter((e) => !/favicon|Failed to load resource/i
   {
     const { page, ctx, errors } = await session(browser, { email: 'admin@demo.test', width: 1440, height: 900 });
     check('admin: ve la pestaña Equipo', await has(page, 'nav-settings'));
+    check('admin: ve la pestaña Aprobaciones', await has(page, 'nav-approvals'));
+    await (await page.$('[data-testid="nav-approvals"]')).click();
+    await page.waitForSelector('[data-testid="sheet-open"]', { timeout: 15000 }).catch(() => {});
+    await wait(500);
+    let ta = await textOf(page);
+    check('aprobaciones: pendientes con el nombre de la persona', ta.includes('Pendientes') && /Ana Pérez|Luis Gómez|Sara Vidal/.test(ta), ta.slice(0, 80).replace(/\n/g, ' '));
+    check('aprobaciones: no hay boton de borrar hojas ajenas', !(await has(page, 'sheet-delete')));
+    await (await page.$('[data-testid="sheet-open"]')).click();
+    await page.waitForSelector('[data-testid="approve-sheet"]', { timeout: 15000 }).catch(() => {});
+    ta = await textOf(page);
+    check('aprobaciones: detalle en solo lectura con Aprobar y Rechazar', (await has(page, 'approve-sheet')) && (await has(page, 'reject-sheet')) && !(await has(page, 'add-line')) && ta.includes('Aprobar') && ta.includes('Rechazar'));
+    check('aprobaciones: sin scroll horizontal', (await overflowX(page)) <= 0);
     await (await page.$('[data-testid="nav-settings"]')).click();
     await page.waitForSelector('[data-testid="team-table"]');
     await wait(800);
