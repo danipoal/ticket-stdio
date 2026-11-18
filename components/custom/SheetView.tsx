@@ -43,15 +43,20 @@ import { formatAmount, formatDateSafe, todayIso } from "@/utils/format";
 import { validateLine } from "@/utils/validation";
 import { checkPhoto, safeFileName } from "@/utils/files";
 import { confirmAction } from "@/utils/confirm";
+import { StatusBadge } from "@/components/custom/ui";
+import { palette } from "@/constants/theme";
+import { View as RNView, Text as RNText } from "react-native";
 
 type SheetViewProps = {
   sheet: ExpenseSheet;
   onClose?: () => void;
   /** Se llama tras cambiar el estado con exito, para que la lista se refresque. */
   onStatusChange?: (newStatusId: number) => void;
+  /** Escritorio: panel ancho con cabecera a la izquierda y lineas en tabla. */
+  wide?: boolean;
 };
 
-export default function SheetView({ sheet, onClose, onStatusChange }: SheetViewProps) {
+export default function SheetView({ sheet, onClose, onStatusChange, wide = false }: SheetViewProps) {
   const [lines, setLines] = useState<ExpenseLinePlain[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   // listError: fallo al cargar las lineas (sustituye a la lista).
@@ -253,6 +258,21 @@ export default function SheetView({ sheet, onClose, onStatusChange }: SheetViewP
 
   const formatDate = formatDateSafe;
 
+  const categoryNames = useMemo(() => Object.fromEntries(categories.map((c) => [String(c.id), c.name])), [categories]);
+  const paymentNames = useMemo(() => Object.fromEntries(paymentTypes.map((c) => [String(c.id), c.name])), [paymentTypes]);
+
+  const deleteLine = async (line: ExpenseLinePlain) => {
+    if (!line.id) return;
+    const ok = await confirmAction("Eliminar línea", `¿Eliminar "${line.title}"?`);
+    if (!ok) return;
+    const { error } = await supabase.from("Expense_line").delete().eq("id", line.id);
+    if (!error) {
+      fetchExpenseLines();
+    } else {
+      setActionError("Error eliminando la línea");
+    }
+  };
+
   const handleDownload = async (url?: string | null) => {
     if (!url) return;
     if (Platform.OS === 'web') {
@@ -298,12 +318,12 @@ export default function SheetView({ sheet, onClose, onStatusChange }: SheetViewP
     ) : null;
 
   return (
-    <Box flex={1} w="$full" alignItems="center" justifyContent="center">
+    <Box flex={1} w="$full" alignItems="center" justifyContent={wide ? "flex-start" : "center"}>
       <Box
         position="relative"
         w="$full"
         flex={1}
-        maxWidth={720}
+        maxWidth={wide ? 99999 : 720}
         bg="$white"
         borderWidth={1}
         borderColor="$coolGray200"
@@ -323,7 +343,30 @@ export default function SheetView({ sheet, onClose, onStatusChange }: SheetViewP
           <Icon as={X} size="lg" color="$coolGray700" />
         </Pressable>
 
-        {/* Encabezado con datos de la hoja */}
+        {wide ? (
+          <RNView testID="sheet-header-wide" style={{ paddingRight: 36 }}>
+            <RNView style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
+              <RNText style={{ fontSize: 22, fontWeight: "800", color: palette.text, marginRight: 12 }}>{sheet.title}</RNText>
+              <StatusBadge statusId={statusId} label={sheet.status?.id === statusId ? sheet.status?.name : undefined} />
+            </RNView>
+            {sheet.description ? (
+              <RNText style={{ fontSize: 14, color: palette.textMuted, marginTop: 6 }}>{sheet.description}</RNText>
+            ) : null}
+            <RNView style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
+              {[
+                ["Proyecto", sheet.project || "-"],
+                ["Creada", formatDate(sheet.create_date)],
+                ["Líneas", String(lines.length)],
+                ["Total", `${formatAmount(sheet.total_amount)} €`],
+              ].map(([k, v]) => (
+                <RNView key={k} style={{ backgroundColor: palette.bg, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, minWidth: 110 }}>
+                  <RNText style={{ fontSize: 11.5, color: palette.textMuted, fontWeight: "600" }}>{k}</RNText>
+                  <RNText style={{ fontSize: 15, color: palette.text, fontWeight: "700", marginTop: 2 }}>{v}</RNText>
+                </RNView>
+              ))}
+            </RNView>
+          </RNView>
+        ) : (
         <VStack space="md">
           <Heading size="lg" textAlign="center">
             {sheet.title}
@@ -348,6 +391,7 @@ export default function SheetView({ sheet, onClose, onStatusChange }: SheetViewP
             </Text>
           </HStack>
         </VStack>
+        )}
 
         {/* Acciones */}
         <HStack mt={16} mb={8} alignItems="center" justifyContent="space-between">
@@ -356,11 +400,13 @@ export default function SheetView({ sheet, onClose, onStatusChange }: SheetViewP
             {statusId !== SheetStatusID.APROBADO && (
               <Button testID="approve-sheet" action="positive" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.APROBADO)}>
                 <Icon as={CheckCircle2} />
+                {wide && <ButtonText ml="$2">Aprobar</ButtonText>}
               </Button>
             )}
             {statusId !== SheetStatusID.RECHAZADO && (
               <Button testID="reject-sheet" action="negative" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.RECHAZADO)}>
                 <Icon as={XCircle} />
+                {wide && <ButtonText ml="$2">Rechazar</ButtonText>}
               </Button>
             )}
             {statusId == SheetStatusID.PENDIENTE && (<Button testID="add-line" onPress={() => setCreateOpen((x) => !x)}>
@@ -553,7 +599,42 @@ export default function SheetView({ sheet, onClose, onStatusChange }: SheetViewP
 
           {!loading && !listError && lines.length > 0 && (
             <>
-              {lines.map((line) => (
+              {wide && (
+                <RNView style={{ flexDirection: "row", paddingHorizontal: 12, paddingBottom: 8 }} testID="lines-table-head">
+                  {[["Concepto", 3], ["Fecha", 1.4], ["Categoría", 1.6], ["Pago", 1.6], ["IVA", 0.8], ["Importe", 1.4]].map(([h, f]) => (
+                    <RNText key={String(h)} style={{ flex: Number(f), fontSize: 11.5, fontWeight: "700", color: palette.textMuted, textTransform: "uppercase", letterSpacing: 0.4, textAlign: h === "Importe" || h === "IVA" ? "right" : "left" }}>{h}</RNText>
+                  ))}
+                  <RNView style={{ width: 80 }} />
+                </RNView>
+              )}
+              {lines.map((line) => wide ? (
+                <RNView key={line.id} testID={`line-row-${line.id}`} style={{ flexDirection: "row", alignItems: "center", backgroundColor: palette.surface, borderTopWidth: 1, borderTopColor: palette.border, paddingVertical: 12, paddingHorizontal: 12 }}>
+                  <RNText style={{ flex: 3, fontSize: 14, fontWeight: "600", color: palette.text }} numberOfLines={1}>{line.title}</RNText>
+                  <RNText style={{ flex: 1.4, fontSize: 13.5, color: palette.textMuted }}>{line.date ? formatDate(line.date) : "-"}</RNText>
+                  <RNText style={{ flex: 1.6, fontSize: 13.5, color: palette.textMuted }} numberOfLines={1}>{categoryNames[String(line.id_category)] ?? "-"}</RNText>
+                  <RNText style={{ flex: 1.6, fontSize: 13.5, color: palette.textMuted }} numberOfLines={1}>{paymentNames[String(line.id_payment_type)] ?? "-"}</RNText>
+                  <RNText style={{ flex: 0.8, fontSize: 13.5, color: palette.textMuted, textAlign: "right" }}>{line.tax}%</RNText>
+                  <RNText style={{ flex: 1.4, fontSize: 14, fontWeight: "700", color: palette.text, textAlign: "right" }}>{formatAmount(line.amount)} €</RNText>
+                  <RNView style={{ width: 80, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
+                    {line.foto && (
+                      <Pressable onPress={() => handleDownload(line.foto)} accessibilityRole="button" accessibilityLabel="Abrir adjunto">
+                        <Icon as={Download} />
+                      </Pressable>
+                    )}
+                    {statusId === SheetStatusID.PENDIENTE && (
+                      <Pressable
+                        testID={`delete-line-${line.id}`}
+                        onPress={() => deleteLine(line)}
+                        accessibilityLabel="Eliminar línea"
+                        accessibilityRole="button"
+                        hitSlop={10}
+                      >
+                        <Icon as={Trash2} size="lg" color="$coolGray700" />
+                      </Pressable>
+                    )}
+                  </RNView>
+                </RNView>
+              ) : (
                 <Box
                   key={line.id}
                   w="$full"
@@ -600,20 +681,7 @@ export default function SheetView({ sheet, onClose, onStatusChange }: SheetViewP
                       {statusId === SheetStatusID.PENDIENTE && (
                       <Pressable
                         testID={`delete-line-${line.id}`}
-                        onPress={async () => {
-                          if (!line.id) return;
-                          const ok = await confirmAction("Eliminar línea", `¿Eliminar "${line.title}"?`);
-                          if (!ok) return;
-                          const { error } = await supabase
-                            .from('Expense_line')
-                            .delete()
-                            .eq('id', line.id);
-                          if (!error) {
-                            fetchExpenseLines();
-                          } else {
-                            setActionError('Error eliminando la línea');
-                          }
-                        }}
+                        onPress={() => deleteLine(line)}
                         accessibilityLabel="Eliminar línea"
                         accessibilityRole="button"
                         hitSlop={10}

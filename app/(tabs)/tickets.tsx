@@ -5,7 +5,15 @@ import CreateSheetView from "@/components/custom/CreateSheetView";
 import SheetView from "@/components/custom/SheetView";
 import useAuth from "@/context/useAuth";
 import { supabase } from "@/utils/supabase";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { StyleSheet, Text as RNText, TextInput, View } from "react-native";
+import { Plus, Search, FileText } from "lucide-react-native";
+import Page from "@/components/custom/Page";
+import SheetListItem from "@/components/custom/SheetListItem";
+import { Card, Chip, PrimaryButton } from "@/components/custom/ui";
+import { palette } from "@/constants/theme";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
+import { filterSheets, statusCounts, StatusFilter } from "@/utils/sheets";
 import { ExpenseSheet, ExpenseSheetPlain } from "@/constants/types";
 import { confirmAction } from "@/utils/confirm";
 
@@ -17,6 +25,9 @@ export default function TicketsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<ExpenseSheet | null>(null);
+  const { isDesktop } = useBreakpoint();
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
 
   useEffect(() => {
@@ -94,6 +105,94 @@ export default function TicketsScreen() {
     return null;
   };
 
+  const visible = useMemo(() => filterSheets(sheets, { query, status: statusFilter }), [sheets, query, statusFilter]);
+  const counts = useMemo(() => statusCounts(sheets), [sheets]);
+
+  const toolbar = sheets.length > 0 && (
+    <View style={s.toolbar} testID="sheet-toolbar">
+      <View style={s.search}>
+        <Search size={16} color={palette.textMuted} />
+        <TextInput
+          testID="sheet-search"
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Buscar por título o proyecto"
+          placeholderTextColor={palette.textMuted}
+          style={[s.searchInput, { outlineStyle: "none" } as any]}
+        />
+      </View>
+      <View style={s.chips}>
+        <Chip testID="filter-all" label="Todas" count={counts.all} active={statusFilter === "all"} onPress={() => setStatusFilter("all")} />
+        <Chip testID="filter-1" label="Pendientes" count={counts[1]} active={statusFilter === 1} onPress={() => setStatusFilter(1)} />
+        <Chip testID="filter-2" label="Aprobadas" count={counts[2]} active={statusFilter === 2} onPress={() => setStatusFilter(2)} />
+        <Chip testID="filter-3" label="Rechazadas" count={counts[3]} active={statusFilter === 3} onPress={() => setStatusFilter(3)} />
+      </View>
+    </View>
+  );
+
+  const noMatches = !loading && !error && sheets.length > 0 && visible.length === 0;
+
+  const detailPane = createSheetView ? (
+    <CreateSheetView onClose={() => setCreateSheetView(false)} onCreate={onCreateSheet} />
+  ) : selectedSheet ? (
+    <SheetView
+      sheet={selectedSheet}
+      wide={isDesktop}
+      onClose={() => setSelectedSheet(null)}
+      onStatusChange={() => fetchExpenseSheets()}
+    />
+  ) : (
+    <Card style={s.placeholder} testID="detail-placeholder">
+      <FileText size={34} color={palette.textMuted} />
+      <RNText style={s.placeholderTitle}>Selecciona una hoja</RNText>
+      <RNText style={s.placeholderText}>Elige una hoja de la lista para ver sus líneas, o crea una nueva.</RNText>
+    </Card>
+  );
+
+  if (isDesktop) {
+    return (
+      <Page
+        title="Mis tickets"
+        subtitle={`${sheets.length} ${sheets.length === 1 ? "hoja" : "hojas"} de gasto`}
+        maxWidth={1500}
+        scroll={false}
+        actions={
+          <PrimaryButton
+            testID="add-button"
+            label="Nueva hoja"
+            icon={<Plus size={16} color="#fff" style={{ marginRight: 6 }} />}
+            onPress={() => { setSelectedSheet(null); setCreateSheetView(true); }}
+          />
+        }
+      >
+        {toolbar}
+        {actionError && <RNText style={s.error} testID="tickets-action-error">{actionError}</RNText>}
+        <View style={s.panes}>
+          <View style={s.listPane}>
+            {loading && <RNText style={s.state}>Cargando tickets...</RNText>}
+            {!loading && error && <RNText style={[s.state, { color: palette.danger }]}>{error}</RNText>}
+            {!loading && !error && sheets.length === 0 && <RNText style={s.state}>No tienes tickets todavía</RNText>}
+            {noMatches && <RNText style={s.state}>Ninguna hoja coincide con la búsqueda</RNText>}
+            {!loading && !error && (
+              <ScrollView flex={1} showsVerticalScrollIndicator={false}>
+                {visible.map((sheet) => (
+                  <SheetListItem
+                    key={sheet.id}
+                    sheet={sheet}
+                    selected={selectedSheet?.id === sheet.id && !createSheetView}
+                    onPress={() => { setCreateSheetView(false); setSelectedSheet(sheet); }}
+                    onDelete={deleteSheet}
+                  />
+                ))}
+              </ScrollView>
+            )}
+          </View>
+          <View style={s.detailPane}>{detailPane}</View>
+        </View>
+      </Page>
+    );
+  }
+
   return (
   <Box flex={1} bg="$backgroundLight50">
     <Box flex={1} w="$full">
@@ -121,6 +220,8 @@ export default function TicketsScreen() {
             onStatusChange={() => fetchExpenseSheets()}
           />
         )}
+
+        {!createSheetView && !selectedSheet && toolbar}
 
         {actionError && (
           <Text textAlign="center" color="$red600" testID="tickets-action-error">
@@ -151,7 +252,10 @@ export default function TicketsScreen() {
             contentContainerStyle={{ flexGrow: 1, paddingBottom: 96 }}
             showsVerticalScrollIndicator
           >
-            {sheets.map((sheet) => (
+            {noMatches && (
+              <Text textAlign="center">Ninguna hoja coincide con la búsqueda</Text>
+            )}
+            {visible.map((sheet) => (
               <SheetCard
                 key={sheet.id}
                 sheet={sheet}
@@ -169,3 +273,18 @@ export default function TicketsScreen() {
   );
 
 }
+
+const s = StyleSheet.create({
+  toolbar: { marginBottom: 14, gap: 10 },
+  search: { flexDirection: "row", alignItems: "center", backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 10, paddingHorizontal: 12, height: 42 },
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: palette.text },
+  chips: { flexDirection: "row", flexWrap: "wrap", rowGap: 8 },
+  panes: { flex: 1, flexDirection: "row", gap: 20, minHeight: 0 },
+  listPane: { width: 400 },
+  detailPane: { flex: 1, minWidth: 0 },
+  state: { fontSize: 14, color: palette.textMuted, marginVertical: 8 },
+  error: { color: palette.danger, marginBottom: 10 },
+  placeholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
+  placeholderTitle: { fontSize: 17, fontWeight: "700", color: palette.text, marginTop: 6 },
+  placeholderText: { fontSize: 13.5, color: palette.textMuted, textAlign: "center", maxWidth: 320 },
+});

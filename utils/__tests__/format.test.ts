@@ -85,3 +85,11 @@ describe('todayIso', () => {
     expect(todayIso(new Date(2025, 11, 31, 0, 0))).toBe('2025-12-31');
   });
 });
+
+describe('formatAmount: separador de miles', () => {
+  it('agrupa miles tambien en 4 cifras (2.662,34, no 2662,34)', () => {
+    expect(formatAmount(2662.34)).toBe('2.662,34');
+    expect(formatAmount(1234567.5)).toBe('1.234.567,50');
+    expect(formatAmount(999.99)).toBe('999,99');
+  });
+});

@@ -1,130 +1,114 @@
-import { Box, Text, VStack, Heading, Center, Avatar, HStack, Icon, Divider } from "@gluestack-ui/themed"
+import { useEffect, useState } from "react"
+import { StyleSheet, Text, View } from "react-native"
+import { router } from "expo-router"
+import { Mail, Shield, Building2, IdCard, LogOut, MapPin, Hash } from "lucide-react-native"
 import useAuth from "@/context/useAuth"
-import { Button, ButtonText } from "@/components/ui/button";
-import { router } from "expo-router";
-import { supabase } from "@/utils/supabase";
-import { useEffect, useMemo, useState } from "react";
-import { Mail, Shield, CalendarClock, Building2, IdCard, LogOut } from "lucide-react-native";
+import { supabase } from "@/utils/supabase"
+import Page from "@/components/custom/Page"
+import { Avatar, Card, CardTitle, PrimaryButton } from "@/components/custom/ui"
+import { palette } from "@/constants/theme"
+import { initials } from "@/utils/dashboard"
+import { useBreakpoint } from "@/hooks/useBreakpoint"
 
-
+function Row({ label, value, icon: Icon }: { label: string; value?: string | null; icon?: any }) {
+  return (
+    <View style={s.row}>
+      <View style={s.rowLabel}>
+        {Icon ? <Icon size={16} color={palette.textMuted} /> : null}
+        <Text style={s.label}>{label}</Text>
+      </View>
+      <Text style={s.value} numberOfLines={1}>{value || "-"}</Text>
+    </View>
+  )
+}
 
 export default function UserScreen() {
-  const { employee, user, fetchEmployee, loading } = useAuth();
-  const [org, setOrg] = useState<any | null>(null);
-  const [fetching, setFetching] = useState<boolean>(false);
-
-  // No hacemos fetch de employee aquí; se toma de useAuth
+  const { employee, user, loading } = useAuth()
+  const { isDesktop } = useBreakpoint()
+  const [org, setOrg] = useState<any | null>(null)
 
   useEffect(() => {
+    let active = true
     const load = async () => {
-      if (!employee?.id) return;
-      setFetching(true);
-      // Cargar organización si existe
-      const orgId = employee.id_organization;
-      if (orgId) {
-        const { data: orgData } = await supabase
-          .from('Organization')
-          .select('*')
-          .eq('id', orgId)
-          .maybeSingle();
-        setOrg(orgData || null);
-      } else {
-        setOrg(null);
+      const orgId = employee?.id_organization
+      if (!orgId) {
+        setOrg(null)
+        return
       }
-      setFetching(false);
-    };
-    load();
-  }, [employee?.id, employee?.id_organization]);
-
-  // Eliminado cálculo de iniciales al no usar avatar
+      const { data: orgData } = await supabase.from("Organization").select("*").eq("id", orgId).maybeSingle()
+      if (active) setOrg(orgData || null)
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [employee?.id, employee?.id_organization])
 
   if (loading || !employee) {
     return (
-      <Center flex={1}><Text>Cargando...</Text></Center>
-    );
+      <Page title="Usuario">
+        <Text style={s.value}>Cargando...</Text>
+      </Page>
+    )
   }
 
   const logOut = async () => {
-    await supabase.auth.signOut();
-    router.replace("/auth/login");
-  };
-
-  const InfoRow = ({ label, value, icon }: { label: string; value?: any; icon?: any }) => (
-    <HStack alignItems="center" justifyContent="space-between" py={2}>
-      <HStack space="sm" alignItems="center">
-        {icon ? <Icon as={icon} size="sm" color="$coolGray600" /> : null}
-        <Text color="$coolGray600">{label}</Text>
-      </HStack>
-      <Text fontWeight="$bold">{value ?? '-'}</Text>
-    </HStack>
-  );
+    await supabase.auth.signOut()
+    router.replace("/auth/login")
+  }
 
   return (
-    <Box flex={1} bg="$backgroundLight50">
-      <VStack flex={1} space="lg" px={4} py={4} maxWidth={720} alignSelf="center" w="$full">
-        {/* Header con avatar desactivado */}
-        {false && (
-          <HStack alignItems="center" space="md">
-            <Avatar bgColor="$indigo600">
-              <Text color="$white" fontWeight="$bold">U</Text>
-            </Avatar>
-            <VStack>
-              <Heading size="lg">{employee?.name}</Heading>
-              <HStack space="sm" alignItems="center">
-                <Icon as={Mail} size="sm" color="$coolGray600" />
-                <Text color="$coolGray700">{user?.email}</Text>
-              </HStack>
-            </VStack>
-          </HStack>
-        )}
+    <Page title="Usuario" subtitle="Tu perfil y tu organización" maxWidth={980}>
+      <View style={[s.cols, !isDesktop && { flexDirection: "column" }]}>
+        <Card style={{ flex: 1 }} testID="card-employee">
+          <View style={s.hero}>
+            <Avatar text={initials(employee.name)} size={64} />
+            <View style={{ flex: 1, marginLeft: 16 }}>
+              <Text style={s.name}>{employee.name}</Text>
+              <Text style={s.mail}>{user?.email}</Text>
+              <View style={[s.role, employee.is_admin ? s.roleAdmin : null]}>
+                <Shield size={12} color={employee.is_admin ? palette.primary : palette.textMuted} />
+                <Text style={[s.roleText, employee.is_admin ? { color: palette.primary } : null]}>
+                  {employee.is_admin ? "Administrador" : "Empleado"}
+                </Text>
+              </View>
+            </View>
+          </View>
+          <CardTitle title="Datos del empleado" />
+          <Row label="Nombre" value={employee.name} icon={IdCard} />
+          <Row label="Correo" value={user?.email} icon={Mail} />
+          <Row label="Es administrador" value={employee.is_admin ? "Sí" : "No"} icon={Shield} />
+        </Card>
 
-        {/* Centro vertical de las tarjetas de datos */}
-        <Center flex={1}>
-          <VStack space="lg" w="$full">
-            {/* Datos del empleado */}
-            <Box bg="$white" p={12} borderRadius="$lg" borderWidth={1} borderColor="$coolGray200">
-              <Heading size="md" mb={4}>Datos del empleado</Heading>
-              <Divider mb={2} />
-              <InfoRow label="Nombre" value={employee?.name} icon={IdCard} />
-              <InfoRow label="Correo" value={user?.email} icon={Mail} />
-              <InfoRow label="Es administrador" value={employee?.is_admin ? 'Sí' : 'No'} icon={Shield} />
-              {/* <InfoRow label="Creado" value={employee?.created_at ? new Date(employee.created_at).toLocaleDateString() : '-'} icon={CalendarClock} /> */}
-              {/* <InfoRow label="ID Admin" value={employee?.id_admin} icon={IdCard} /> */}
-              {/* <InfoRow label="ID Organización" value={employee?.id_organization} icon={Building2} /> */}
-              {/* <InfoRow label="ID Usuario" value={employee?.id_user} icon={IdCard} /> */}
-            </Box>
+        <Card style={{ flex: 1 }} testID="card-org">
+          <CardTitle title="Organización" subtitle={org?.name || "Sin organización"} />
+          <Row label="VAT" value={org?.VAT_number} icon={Hash} />
+          <Row label="Calle" value={org?.street} icon={MapPin} />
+          <Row label="Ciudad" value={org?.city} icon={Building2} />
+          <Row label="País" value={org?.country} icon={Building2} />
+        </Card>
+      </View>
 
-            {/* Organización */}
-            <Box bg="$white" p={12} borderRadius="$lg" borderWidth={1} borderColor="$coolGray200">
-              <HStack alignItems="center" justifyContent="space-between" mb={4}>
-                <Heading size="md">Organización</Heading>
-                <HStack space="sm" alignItems="center">
-                  <Icon as={Building2} size="sm" color="$coolGray600" />
-                  <Text color="$coolGray700">{org?.name || 'Sin organización'}</Text>
-                </HStack>
-              </HStack>
-              <Divider mb={2} />
-              <VStack>
-                {/* <InfoRow label="Creado" value={org?.created_at ? new Date(org.created_at).toLocaleDateString() : '-'} /> */}
-                <InfoRow label="VAT" value={org?.VAT_number} />
-                <InfoRow label="Calle" value={org?.street} />
-                <InfoRow label="Ciudad" value={org?.city} />
-                <InfoRow label="País" value={org?.country} />
-              </VStack>
-            </Box>
-          </VStack>
-        </Center>
-
-        {/* Logout centrado y rojo */}
-        <Center>
-          <Button action="negative" variant="solid" size="lg" onPress={logOut}>
-            <HStack space="sm" alignItems="center">
-              <Icon as={LogOut} color="$red" />
-              <ButtonText>Cerrar sesión</ButtonText>
-            </HStack>
-          </Button>
-        </Center>
-      </VStack>
-    </Box>
+      {/* En escritorio el cierre de sesion esta en la barra lateral */}
+      {!isDesktop && (
+        <View style={{ alignItems: "center", marginTop: 8 }}>
+          <PrimaryButton label="Cerrar sesión" onPress={logOut} testID="logout" icon={<LogOut size={16} color="#fff" style={{ marginRight: 8 }} />} />
+        </View>
+      )}
+    </Page>
   )
 }
+
+const s = StyleSheet.create({
+  cols: { flexDirection: "row", gap: 16, marginBottom: 16 },
+  hero: { flexDirection: "row", alignItems: "center", marginBottom: 22, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: palette.border },
+  name: { fontSize: 20, fontWeight: "800", color: palette.text },
+  mail: { fontSize: 13.5, color: palette.textMuted, marginTop: 2 },
+  role: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 5, backgroundColor: "#f3f4f6", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, marginTop: 8 },
+  roleAdmin: { backgroundColor: palette.primarySoft },
+  roleText: { fontSize: 12, fontWeight: "600", color: palette.textMuted },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 11, borderTopWidth: 1, borderTopColor: "#f1f2f6" },
+  rowLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
+  label: { fontSize: 13.5, color: palette.textMuted },
+  value: { fontSize: 14, fontWeight: "600", color: palette.text, marginLeft: 16, flexShrink: 1 },
+})
