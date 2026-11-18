@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
-import { StyleSheet, Text, View } from "react-native"
+import { useEffect, useRef, useState } from "react"
+import { Pressable, StyleSheet, Text, View } from "react-native"
 import { router } from "expo-router"
-import { Mail, Shield, Building2, IdCard, LogOut, MapPin, Hash } from "lucide-react-native"
+import { Mail, Shield, Building2, IdCard, LogOut, MapPin, Hash, Copy, KeyRound } from "lucide-react-native"
 import useAuth from "@/context/useAuth"
 import { supabase } from "@/utils/supabase"
 import Page from "@/components/custom/Page"
@@ -26,6 +26,12 @@ export default function UserScreen() {
   const { employee, user, loading } = useAuth()
   const { isDesktop } = useBreakpoint()
   const [org, setOrg] = useState<any | null>(null)
+  const [inviteCode, setInviteCode] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // El aviso "Copiado" desaparece solo; si la pantalla se cierra antes, el temporizador no debe disparar
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
 
   useEffect(() => {
     let active = true
@@ -35,14 +41,26 @@ export default function UserScreen() {
         setOrg(null)
         return
       }
-      const { data: orgData } = await supabase.from("Organization").select("*").eq("id", orgId).maybeSingle()
+      // Columnas explicitas: la base de datos no permite `select *` sobre Organization (el codigo de invitacion
+      // y el id del ERP no se exponen); el codigo lo obtiene un administrador con la funcion my_invite_code.
+      const { data: orgData } = await supabase
+        .from("Organization")
+        .select("id,name,VAT_number,street,city,country")
+        .eq("id", orgId)
+        .maybeSingle()
       if (active) setOrg(orgData || null)
+      if (employee?.is_admin) {
+        const { data: codeData } = await supabase.rpc("my_invite_code")
+        if (active) setInviteCode(typeof codeData === "string" ? codeData : null)
+      } else if (active) {
+        setInviteCode(null)
+      }
     }
     load()
     return () => {
       active = false
     }
-  }, [employee?.id, employee?.id_organization])
+  }, [employee?.id, employee?.id_organization, employee?.is_admin])
 
   if (loading || !employee) {
     return (
@@ -50,6 +68,18 @@ export default function UserScreen() {
         <Text style={s.value}>Cargando...</Text>
       </Page>
     )
+  }
+
+  const copyCode = async () => {
+    if (!inviteCode) return
+    try {
+      await (globalThis as any).navigator?.clipboard?.writeText(inviteCode)
+      setCopied(true)
+      if (copiedTimer.current) clearTimeout(copiedTimer.current)
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000)
+    } catch {
+      /* sin portapapeles (movil/permiso): el codigo se ve en pantalla igualmente */
+    }
   }
 
   const logOut = async () => {
@@ -86,6 +116,22 @@ export default function UserScreen() {
           <Row label="Calle" value={org?.street} icon={MapPin} />
           <Row label="Ciudad" value={org?.city} icon={Building2} />
           <Row label="País" value={org?.country} icon={Building2} />
+          {inviteCode ? (
+            <View style={s.invite} testID="invite-box">
+              <View style={{ flex: 1 }}>
+                <View style={s.rowLabel}>
+                  <KeyRound size={15} color={palette.primary} />
+                  <Text style={s.inviteTitle}>Código de invitación</Text>
+                </View>
+                <Text style={s.inviteCode} testID="invite-code" selectable>{inviteCode}</Text>
+                <Text style={s.inviteHelp}>Compártelo con tu equipo: lo necesitan para unirse a la organización al registrarse.</Text>
+              </View>
+              <Pressable onPress={copyCode} accessibilityRole="button" testID="invite-copy" style={s.copyBtn}>
+                <Copy size={15} color={palette.primary} />
+                <Text style={s.copyText}>{copied ? "Copiado" : "Copiar"}</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </Card>
       </View>
 
@@ -110,5 +156,11 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 11, borderTopWidth: 1, borderTopColor: "#f1f2f6" },
   rowLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
   label: { fontSize: 13.5, color: palette.textMuted },
+  invite: { flexDirection: "row", alignItems: "center", backgroundColor: palette.primarySoft, borderRadius: 12, padding: 14, marginTop: 14, gap: 12 },
+  inviteTitle: { fontSize: 13, fontWeight: "700", color: palette.primary },
+  inviteCode: { fontSize: 24, fontWeight: "800", color: palette.text, letterSpacing: 3, marginTop: 6 },
+  inviteHelp: { fontSize: 12, color: palette.textMuted, marginTop: 4 },
+  copyBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  copyText: { fontSize: 13, fontWeight: "700", color: palette.primary },
   value: { fontSize: 14, fontWeight: "600", color: palette.text, marginLeft: 16, flexShrink: 1 },
 })

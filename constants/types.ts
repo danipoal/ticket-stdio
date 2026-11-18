@@ -18,6 +18,8 @@ export type ExpenseLinePlain = {
   date?: string | null;
   tax: number;
   foto?: string;
+  /** Ruta en el bucket privado `tickets` (se abre con una URL firmada). `foto` queda para URLs externas antiguas. */
+  foto_path?: string | null;
   id_payment_type: string;	
   id_category: string;
   id_sheet: string;
@@ -43,6 +45,10 @@ export type EmployeePlain = {
 
 export type ExpenseSheet = {
   id: number;
+  /** HG-000012: la genera la base de datos */
+  reference?: string;
+  review_note?: string | null;
+  reviewed_at?: string | null;
   title: string;
   description: string;
   project: string;
@@ -68,4 +74,14 @@ export type DashboardStats = {
   denied_sheets: number;
   total_expense_lines: number;
   total_amount: number;
+};
+
+export type SheetHistoryEntry = {
+  id: number;
+  id_sheet: number;
+  from_status: number | null;
+  to_status: number;
+  changed_by_name: string | null;
+  note: string | null;
+  changed_at: string;
 };

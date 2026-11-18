@@ -9,10 +9,11 @@
  * payload que realmente se envia.
  */
 export type Result = { data?: any; error?: { message: string } | null };
-export type Call = { table: string; op: string; payload?: any; filters: [string, any][]; order?: [string, any] };
+export type Call = { table: string; op: string; payload?: any; filters: [string, any][]; order?: [string, any]; select?: string };
 
 export function createSupabaseMock() {
   const handlers = new Map<string, Result | ((call: Call) => Result)>();
+  const rpcHandlers = new Map<string, Result | ((args: any) => Result)>();
   const calls: Call[] = [];
 
   const builder = (table: string) => {
@@ -24,7 +25,7 @@ export function createSupabaseMock() {
       return Promise.resolve({ data: null, error: null, ...(r ?? {}) });
     };
     const chain: any = {
-      select: () => chain,
+      select: (cols?: string) => ((call.select = cols), chain),
       order: (col: string, opts?: any) => ((call.order = [col, opts]), chain),
       insert: (payload: any) => ((call.op = 'insert'), (call.payload = payload), chain),
       update: (payload: any) => ((call.op = 'update'), (call.payload = payload), chain),
@@ -47,24 +48,38 @@ export function createSupabaseMock() {
   };
 
   const storageUpload = jest.fn(async () => ({ data: { path: 'x' }, error: null }));
+  const storageSignedUrl = jest.fn(async (p: string): Promise<any> => ({ data: { signedUrl: `https://signed.test/${p}?token=t` }, error: null }));
   const storage = {
     from: jest.fn(() => ({
       upload: storageUpload,
+      createSignedUrl: storageSignedUrl,
       getPublicUrl: jest.fn((p: string) => ({ data: { publicUrl: `https://cdn.test/${p}` } })),
     })),
   };
 
+  // supabase.rpc(nombre, args): se registra en calls como table "rpc:<nombre>"
+  const rpc = (name: string, args?: any) => {
+    calls.push({ table: `rpc:${name}`, op: 'rpc', payload: args, filters: [] });
+    const h = rpcHandlers.get(name);
+    const r = typeof h === 'function' ? h(args) : h;
+    return Promise.resolve({ data: null, error: null, ...(r ?? {}) });
+  };
+
   return {
-    client: { from: (t: string) => builder(t), auth, storage },
+    client: { from: (t: string) => builder(t), auth, storage, rpc },
     on: (table: string, op: string, r: Result | ((c: Call) => Result)) =>
       void handlers.set(`${table}:${op}`, r),
+    onRpc: (name: string, r: Result | ((args: any) => Result)) => void rpcHandlers.set(name, r),
     calls,
     auth,
     storageUpload,
+    storageSignedUrl,
     reset: () => {
       handlers.clear();
+      rpcHandlers.clear();
       calls.length = 0;
       storageUpload.mockClear();
+      storageSignedUrl.mockClear();
     },
   };
 }

@@ -26,7 +26,7 @@ export default function SheetListItem({
           <Text style={s.amount}>{formatAmount(sheet.total_amount)} €</Text>
         </View>
         <Text style={s.sub} numberOfLines={1}>
-          {ownerName ? `${ownerName} · ` : ''}{sheet.project || 'Sin proyecto'} · {formatDateSafe(sheet.create_date)}
+          {sheet.reference ? `${sheet.reference} · ` : ''}{ownerName ? `${ownerName} · ` : ''}{sheet.project || 'Sin proyecto'} · {formatDateSafe(sheet.create_date)}
         </Text>
         <StatusBadge statusId={sheet.status?.id} label={sheet.status?.name} />
       </Pressable>
