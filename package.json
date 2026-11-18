@@ -12,7 +12,8 @@
     "lint": "expo lint",
     "test:watch": "jest --watchAll",
     "typecheck": "tsc --noEmit",
-    "e2e": "npx expo export --platform web --output-dir dist && ./e2e/run.sh dist"
+    "e2e": "EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 EXPO_PUBLIC_SUPABASE_KEY=mock npx expo export --platform web --output-dir dist && ./e2e/run.sh dist",
+    "mock": "node e2e/mock-supabase.js"
   },
   "jest": {
     "preset": "jest-expo",

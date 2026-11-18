@@ -51,7 +51,8 @@ export function formatDateSafe(value: string | null | undefined): string {
 export function formatAmount(value: number | string | null | undefined): string {
   const n = typeof value === 'string' ? parseDecimal(value) : value;
   const safe = typeof n === 'number' && Number.isFinite(n) ? n : 0;
-  return safe.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // useGrouping 'always': en es-ES un numero de 4 cifras (2662,34) no lleva separador de miles por defecto
+  return safe.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' as any });
 }
 
 export function todayIso(now: Date = new Date()): string {

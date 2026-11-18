@@ -181,11 +181,11 @@ const Signin = () => {
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.button}
+        style={[styles.button, styles.buttonSecondary]}
         onPress={redirectLogIn}
         activeOpacity={0.8}
       >
-        <Text style={styles.buttonText}>Inicia sesión</Text>
+        <Text style={[styles.buttonText, { color: "#4f46e5" }]}>Inicia sesión</Text>
       </TouchableOpacity>
 
     </View>
@@ -195,26 +195,31 @@ const Signin = () => {
 const styles = StyleSheet.create({
   container: { padding: 20, flex: 1, justifyContent: "center" },
   title: {
-    fontSize: 32,
-    marginBottom: 20,
-    fontWeight: "bold",
+    fontSize: 30,
+    marginBottom: 24,
+    fontWeight: "800",
     textAlign: "center",
+    color: "#111827",
+    letterSpacing: -0.5,
   },
-  formControl: { marginBottom: 15 },
+  formControl: { marginBottom: 16 },
   input: {
     borderWidth: 1,
-    borderColor: "#888",
-    borderRadius: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginTop: 5,
+    borderColor: "#d1d5db",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    marginTop: 6,
+    fontSize: 15,
+    backgroundColor: "#fff",
   },
   inputError: {
-    borderColor: "red",
+    borderColor: "#dc2626",
   },
   errorText: {
-    color: "red",
+    color: "#dc2626",
     marginTop: 5,
+    fontSize: 13,
   },
   infoText: {
     color: "#166534",
@@ -228,19 +233,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   showPasswordBtn: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
   },
   button: {
-    backgroundColor: "#007bff",
-    paddingVertical: 12,
-    borderRadius: 5,
-    marginTop: 15,
+    backgroundColor: "#4f46e5",
+    paddingVertical: 13,
+    borderRadius: 10,
+    marginTop: 14,
+  },
+  buttonSecondary: {
+    backgroundColor: "#eef0ff",
   },
   buttonText: {
     color: "#fff",
     textAlign: "center",
-    fontWeight: "600",
+    fontWeight: "700",
+    fontSize: 15,
   },
 });
-
 export default Signin;
