@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # E2E contra el build web servido con la misma config nginx de produccion.
-#   ./e2e/run.sh [dist]            build generado con EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+#   ./e2e/run.sh [dist]            build generado con EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54399
 #                                  (ver `npm run e2e`): arranca el Supabase simulado y lanza smoke + flujos.
 #   MOCK=0 ./e2e/run.sh dist       build con Supabase real (p. ej. produccion): solo smoke.
 # Requiere Docker y Node. Usa puertos libres y limpia al terminar.
@@ -20,7 +20,7 @@ trap cleanup EXIT
 if [ "$MOCK" = "1" ]; then
   node e2e/mock-supabase.js >/dev/null 2>&1 &
   MOCK_PID=$!
-  for _ in $(seq 1 20); do curl -sf "http://127.0.0.1:54321/rest/v1/Sheet_status" >/dev/null && break; sleep 0.5; done
+  for _ in $(seq 1 20); do curl -sf "http://127.0.0.1:54399/rest/v1/Sheet_status" >/dev/null && break; sleep 0.5; done
 fi
 
 docker run -d --rm --name "$NAME" -p "$PORT:8081" \

@@ -3,10 +3,15 @@ import { act, create, ReactTestInstance } from 'react-test-renderer';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
 import { config } from '@gluestack-ui/config';
 
-export const flush = () =>
-  act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
+// Varias vueltas del bucle de eventos: con la maquina cargada (CI, suite en paralelo) una sola no basta
+// para que terminen las promesas encadenadas (consulta -> setState -> nueva consulta).
+export const flush = async () => {
+  for (let i = 0; i < 4; i++) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+};
 
 export async function mount(ui: React.ReactElement) {
   let r: any;

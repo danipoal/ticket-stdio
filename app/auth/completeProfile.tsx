@@ -7,14 +7,14 @@ import { Button, ButtonText } from "@/components/ui/button";
 import { supabase } from "@/utils/supabase";
 import { Box } from "@/components/ui/box";
 import useAuth from "@/context/useAuth"
-import { EmployeePlain, OrganizationPlain } from "@/constants/types";
+import { friendlyJoinError } from "@/utils/sheetHistory";
 
 const completeProfile = () => {
   const [code, setCode] = useState("");
   const [isValidated, setIsValidated] = useState(false);
 
   const { user, fetchEmployee } = useAuth();
-  const [organization, setOrganization] = useState<OrganizationPlain | null>(null);
+  const [organization, setOrganization] = useState<{ id: number | string; name: string } | null>(null);
   const isInvalid = false;
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
@@ -31,21 +31,20 @@ const completeProfile = () => {
       }
       setIsValidating(true);
 
-      const { data: org, error } = await supabase
-        .from('Organization')
-        .select('*')
-        .eq('VAT_number', input)
-        .maybeSingle();
+      // El codigo de empresa ya no se busca leyendo la tabla Organization (era el NIF, publico): lo valida
+      // una funcion de la base de datos que solo devuelve el nombre de la organizacion.
+      const { data, error } = await supabase.rpc("organization_by_code", { p_code: input });
 
       if (error) {
-        showErrorToast(error.message);
+        showErrorToast(friendlyJoinError(error.message));
         setOrganization(null);
         setIsValidated(false);
         return;
       }
 
+      const org = Array.isArray(data) ? data[0] : data;
       if (org) {
-        setOrganization(org as OrganizationPlain);
+        setOrganization(org as { id: number | string; name: string });
         setIsValidated(true);
       } else {
         setOrganization(null);
@@ -73,15 +72,10 @@ const completeProfile = () => {
 
     setSaving(true);
     try {
-      const employee: Partial<EmployeePlain> = {
-        name: cleanName,
-        id_organization: organization.id,
-        id_user: user.id,
-        is_admin: false,
-      };
-      const inserted = await submitEmployee(employee);
-      if (!inserted) {
-        showErrorToast("No se pudo crear tu perfil. Inténtalo de nuevo", "No se pudo guardar");
+      // Alta en una sola llamada: crea la ficha (nunca administrador) en la organizacion del codigo.
+      const { error } = await supabase.rpc("join_organization", { p_code: code.trim(), p_name: cleanName });
+      if (error) {
+        showErrorToast(friendlyJoinError(error.message), "No se pudo guardar");
         return;
       }
       // Cargar el empleado en el contexto: el guardia de rutas te lleva a la home.
@@ -89,20 +83,6 @@ const completeProfile = () => {
     } finally {
       setSaving(false);
     }
-  };
-
-  const submitEmployee = async (employee: Partial<EmployeePlain>) => {
-    const { data, error } = await supabase
-      .from('employees')
-      .insert([employee])
-      .select()
-      .single();
-
-    if (error) {
-      console.error(error.message);
-      return null;
-    }
-    return data;
   };
 
   const showErrorToast = (message = "", title = "Código incorrecto") => {
@@ -144,6 +124,9 @@ const completeProfile = () => {
             </UIFormControl>
           ) : (
             <UIFormControl isRequired isInvalid={isInvalid} className="space-y-4">
+              <Text className="text-center mb-2" testID="profile-org">
+                Te unirás a <Text className="font-bold">{organization?.name}</Text>
+              </Text>
               <Input>
                 <InputField
                   testID="profile-name"

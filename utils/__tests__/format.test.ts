@@ -1,4 +1,4 @@
-import { formatAmount, formatDateSafe, isValidIsoDate, parseDecimal, todayIso } from '../format';
+import { formatAmount, formatDateSafe, formatDateTimeSafe, isValidIsoDate, parseDecimal, todayIso } from '../format';
 
 describe('parseDecimal', () => {
   it.each([
@@ -91,5 +91,14 @@ describe('formatAmount: separador de miles', () => {
     expect(formatAmount(2662.34)).toBe('2.662,34');
     expect(formatAmount(1234567.5)).toBe('1.234.567,50');
     expect(formatAmount(999.99)).toBe('999,99');
+  });
+});
+
+describe('formatDateTimeSafe', () => {
+  it('formatea fecha y hora en castellano', () => {
+    expect(formatDateTimeSafe('2026-03-04T10:05:00')).toMatch(/04\/03\/2026,? 10:05/);
+  });
+  it('nulo, vacio o invalido -> "-"', () => {
+    for (const v of [null, undefined, '', 'basura']) expect(formatDateTimeSafe(v as any)).toBe('-');
   });
 });

@@ -1,16 +1,18 @@
 // Supabase simulado (auth + REST) para desarrollo visual y e2e sin backend real.
-//   node e2e/mock-supabase.js            -> http://127.0.0.1:54321
+//   node e2e/mock-supabase.js            -> http://127.0.0.1:54399
 // Compilar la app apuntando aqui:
-//   EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 EXPO_PUBLIC_SUPABASE_KEY=mock npx expo start --web
+//   EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54399 EXPO_PUBLIC_SUPABASE_KEY=mock npx expo start --web
 // Usuarios: admin@demo.test (admin) y ana@demo.test (empleada). Cualquier contraseña.
 const http = require('http');
 const url = require('url');
 
-const PORT = Number(process.env.MOCK_PORT || 54321);
+const PORT = Number(process.env.MOCK_PORT || 54399);
 
 const users = {
   'admin@demo.test': { id: 'u-admin', email: 'admin@demo.test' },
   'ana@demo.test': { id: 'u-ana', email: 'ana@demo.test' },
+  // Usuario registrado pero sin ficha de empleado: prueba el alta por codigo de invitacion (ACME1234)
+  'nuevo@demo.test': { id: 'u-nuevo', email: 'nuevo@demo.test' },
 };
 const employees = [
   { id: 'e-admin', name: 'Marta Ruiz', is_admin: true, id_organization: 'o1', id_user: 'u-admin' },
@@ -52,7 +54,16 @@ titles.forEach((t, i) => {
     id, title: t, description: i % 2 ? 'Gastos del desplazamiento y dietas' : '', project: projects[i % 4],
     total_amount: String(Math.round(total * 100) / 100), create_date: date.toISOString(), approval_date: status === 2 ? date.toISOString() : null,
     id_user: owner, status: statuses.find((s) => s.id === status),
+    reference: 'HG-' + String(id).padStart(6, '0'),
+    review_note: status === 3 ? 'Falta el ticket del hotel' : null,
   });
+});
+const history = [];
+sheets.forEach((sh) => {
+  history.push({ id: history.length + 1, id_sheet: sh.id, from_status: null, to_status: 1, changed_by_name: sh.id_user === 'e-ana' ? 'Ana Pérez' : 'Empleado', note: null, changed_at: sh.create_date });
+  if (sh.status.id !== 1) {
+    history.push({ id: history.length + 1, id_sheet: sh.id, from_status: 1, to_status: sh.status.id, changed_by_name: 'Marta Ruiz', note: sh.review_note, changed_at: sh.create_date });
+  }
 });
 
 function stats(emp) {
@@ -78,6 +89,7 @@ const tables = {
   expense_sheet_with_total: () => sheets,
   Expense_line: () => lines,
   Expense_sheet: () => sheets,
+  Sheet_status_history: () => history,
   expense_dashboard_stats: () => employees.filter((e) => e.id !== 'e-admin').map(stats).concat([stats(employees[0])]),
 };
 
@@ -129,6 +141,20 @@ const server = http.createServer((req, res) => {
       try { const id = JSON.parse(Buffer.from(tok, 'base64url').toString()).sub; const user = Object.values(users).find((x) => x.id === id); return send(200, session(user).user); } catch { return send(401, { msg: 'bad jwt' }); }
     }
     if (u.pathname === '/auth/v1/logout') return send(204);
+    const sub = (() => { try { return JSON.parse(Buffer.from((req.headers.authorization || '').split('.')[1], 'base64url').toString()).sub; } catch { return null; } })();
+    const rpc = /^\/rest\/v1\/rpc\/(\w+)$/.exec(u.pathname);
+    if (rpc) {
+      const args = JSON.parse(body || '{}');
+      const okCode = String(args.p_code || '').trim().toUpperCase() === 'ACME1234';
+      if (rpc[1] === 'organization_by_code') return send(200, okCode ? [{ id: 1, name: organizations[0].name }] : []);
+      if (rpc[1] === 'my_invite_code') return send(200, sub === 'u-admin' ? 'ACME1234' : null);
+      if (rpc[1] === 'join_organization') {
+        if (!okCode) return send(400, { code: 'P0002', message: 'Codigo de empresa no valido' });
+        employees.push({ id: 'e-nuevo', name: String(args.p_name || '').trim(), is_admin: false, id_organization: 1, id_user: sub });
+        return send(200, 'e-nuevo');
+      }
+      return send(404, { message: 'mock rpc: ' + rpc[1] });
+    }
     const m = /^\/rest\/v1\/(\w+)$/.exec(u.pathname);
     if (m && tables[m[1]]) {
       if (req.method === 'GET') {

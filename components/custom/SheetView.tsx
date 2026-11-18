@@ -36,10 +36,11 @@ import * as ImagePicker from "expo-image-picker";
 import * as WebBrowser from "expo-web-browser";
 import { X, Plus, Trash2, CheckCircle2, XCircle, Download } from "lucide-react-native";
 import { supabase } from "@/utils/supabase";
-import { ExpenseLinePlain, ExpenseSheet } from "@/constants/types";
+import { ExpenseLinePlain, ExpenseSheet, SheetHistoryEntry } from "@/constants/types";
 import useAux from "@/context/useAux";
 import { SheetStatusID } from "@/constants/constants";
-import { formatAmount, formatDateSafe, todayIso } from "@/utils/format";
+import { formatAmount, formatDateSafe, formatDateTimeSafe, todayIso } from "@/utils/format";
+import { historyLabel } from "@/utils/sheetHistory";
 import { validateLine } from "@/utils/validation";
 import { checkPhoto, safeFileName } from "@/utils/files";
 import { confirmAction } from "@/utils/confirm";
@@ -83,6 +84,8 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
   const { paymentTypes, categories } = useAux();
   const [statusId, setStatusId] = useState<number>(sheet?.status?.id ?? SheetStatusID.PENDIENTE);
   const [updatingStatus, setUpdatingStatus] = useState<boolean>(false);
+  const [reviewNote, setReviewNote] = useState<string>("");
+  const [history, setHistory] = useState<SheetHistoryEntry[]>([]);
   const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
   const [selectedPhotoFile, setSelectedPhotoFile] = useState<any | null>(null);
   const [selectedPhotoName, setSelectedPhotoName] = useState<string | null>(null);
@@ -119,19 +122,41 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
     setLoading(false);
   };
 
+  const fetchHistory = async () => {
+    const { data, error } = await supabase
+      .from("Sheet_status_history")
+      .select("*")
+      .eq("id_sheet", sheet.id)
+      .order("changed_at", { ascending: true });
+    // El historial es informativo: si falla (p. ej. aun no existe la tabla) la hoja se sigue usando
+    setHistory(error ? [] : ((data ?? []) as SheetHistoryEntry[]));
+  };
+
+  useEffect(() => {
+    fetchHistory();
+    setReviewNote("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheet?.id, sheet?.status?.id]);
+
   const updateSheetStatus = async (newStatusId: number) => {
     try {
       setUpdatingStatus(true);
       setActionError(null);
       const { error } = await supabase
         .from("Expense_sheet")
-        .update({ id_status: String(newStatusId) })
+        .update({
+          id_status: String(newStatusId),
+          // El motivo lo escribe quien revisa; al reenviar lo limpia la base de datos
+          ...(!isOwner && reviewNote.trim() ? { review_note: reviewNote.trim() } : {}),
+        })
         .eq("id", sheet.id);
       if (error) {
         setActionError("No se pudo actualizar el estado de la hoja");
         return;
       }
       setStatusId(newStatusId);
+      setReviewNote("");
+      fetchHistory();
       onStatusChange?.(newStatusId);
     } finally {
       setUpdatingStatus(false);
@@ -200,7 +225,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
     // Subir foto a Supabase Storage si hay seleccion. supabase-js NO lanza
     // excepcion cuando la subida falla: devuelve { error }. Antes se ignoraba y
     // se guardaba la URL publica de un fichero que no existia.
-    let finalFotoUrl = foto?.trim() || undefined;
+    let uploadedPath: string | undefined;
     if (selectedPhotoUri || selectedPhotoFile) {
       try {
         setUploadingPhoto(true);
@@ -218,13 +243,13 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
         }
         const { error: uploadError } = await supabase.storage
           .from("tickets")
-          .upload(path, body, { contentType, upsert: true });
+          .upload(path, body, { contentType, upsert: false });
         if (uploadError) {
           setActionError("No se pudo subir la foto. La línea no se ha guardado");
           return;
         }
-        const { data } = supabase.storage.from("tickets").getPublicUrl(path);
-        finalFotoUrl = data.publicUrl;
+        // El bucket es privado: se guarda la RUTA y se abre con una URL firmada temporal
+        uploadedPath = path;
       } catch (e) {
         setActionError("No se pudo subir la foto. La línea no se ha guardado");
         return;
@@ -233,7 +258,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
       }
     }
 
-    const payload: ExpenseLinePlain = { ...validation.payload, foto: finalFotoUrl || undefined };
+    const payload: ExpenseLinePlain = { ...validation.payload, foto: foto.trim() || undefined, foto_path: uploadedPath };
 
     const { error } = await supabase
       .from("Expense_line")
@@ -277,6 +302,20 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
     } else {
       setActionError("Error eliminando la línea");
     }
+  };
+
+  // Abre el adjunto de una linea: ruta privada -> URL firmada (1 h); si no, la URL externa antigua
+  const openAttachment = async (line: ExpenseLinePlain) => {
+    let url: string | null | undefined = line.foto;
+    if (line.foto_path) {
+      const { data, error } = await supabase.storage.from("tickets").createSignedUrl(line.foto_path, 3600);
+      if (error || !data?.signedUrl) {
+        setActionError("No se pudo abrir el adjunto");
+        return;
+      }
+      url = data.signedUrl;
+    }
+    await handleDownload(url);
   };
 
   const handleDownload = async (url?: string | null) => {
@@ -351,6 +390,9 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
 
         {wide ? (
           <RNView testID="sheet-header-wide" style={{ paddingRight: 36 }}>
+            {sheet.reference ? (
+              <RNText testID="sheet-reference" style={{ fontSize: 12, fontWeight: "700", color: palette.textMuted, letterSpacing: 0.6, marginBottom: 4 }}>{sheet.reference}</RNText>
+            ) : null}
             <RNView style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
               <RNText style={{ fontSize: 22, fontWeight: "800", color: palette.text, marginRight: 12 }}>{sheet.title}</RNText>
               <StatusBadge statusId={statusId} label={sheet.status?.id === statusId ? sheet.status?.name : undefined} />
@@ -374,6 +416,9 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
           </RNView>
         ) : (
         <VStack space="md">
+          {sheet.reference ? (
+            <Text textAlign="center" fontSize="$xs" color="$coolGray500" testID="sheet-reference">{sheet.reference}</Text>
+          ) : null}
           <Heading size="lg" textAlign="center">
             {sheet.title}
           </Heading>
@@ -407,7 +452,19 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
         {isOwner && statusId === SheetStatusID.RECHAZADO && (
           <Text mt={8} fontSize="$sm" color="$red600" testID="owner-hint-rejected">
             Hoja rechazada. Reenvíala a aprobación para poder corregirla.
+            {sheet.review_note ? ` Motivo: ${sheet.review_note}` : ""}
           </Text>
+        )}
+
+        {!isOwner && statusId === SheetStatusID.PENDIENTE && (
+          <Input mt={10}>
+            <InputField
+              testID="review-note"
+              value={reviewNote}
+              onChangeText={setReviewNote}
+              placeholder="Motivo (opcional, lo verá el empleado)"
+            />
+          </Input>
         )}
 
         {/* Acciones */}
@@ -638,8 +695,8 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
                   <RNText style={{ flex: 0.8, fontSize: 13.5, color: palette.textMuted, textAlign: "right" }}>{line.tax}%</RNText>
                   <RNText style={{ flex: 1.4, fontSize: 14, fontWeight: "700", color: palette.text, textAlign: "right" }}>{formatAmount(line.amount)} €</RNText>
                   <RNView style={{ width: 80, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
-                    {line.foto && (
-                      <Pressable onPress={() => handleDownload(line.foto)} accessibilityRole="button" accessibilityLabel="Abrir adjunto">
+                    {(line.foto || line.foto_path) && (
+                      <Pressable testID={`open-attachment-${line.id}`} onPress={() => openAttachment(line)} accessibilityRole="button" accessibilityLabel="Abrir adjunto">
                         <Icon as={Download} />
                       </Pressable>
                     )}
@@ -681,16 +738,17 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
                       {line.date && (
                         <Text color="$coolGray600">Fecha: {formatDate(line.date)}</Text>
                       )}
-                      {line.foto && (
+                      {(line.foto || line.foto_path) && (
                         <HStack space="xs" alignItems="center">
                           <Icon as={CheckCircle2} color="$green600" />
                         </HStack>
                       )}
                     </VStack>
                     <HStack alignItems="center" space="sm">
-                      {line.foto && (
+                      {(line.foto || line.foto_path) && (
                         <Pressable
-                          onPress={() => handleDownload(line.foto)}
+                          testID={`open-attachment-${line.id}`}
+                          onPress={() => openAttachment(line)}
                           accessibilityRole="button"
                           accessibilityLabel={Platform.OS === 'web' ? 'Abrir adjunto' : 'Descargar adjunto'}
                         >
@@ -716,6 +774,21 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
                 </Box>
               ))}
             </>
+          )}
+          {history.length > 0 && (
+            <RNView testID="sheet-history" style={{ marginTop: 18, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14 }}>
+              <RNText style={{ fontSize: 13, fontWeight: "700", color: palette.text, marginBottom: 8 }}>Historial</RNText>
+              {history.map((h) => (
+                <RNView key={h.id} testID="history-row" style={{ marginBottom: 8 }}>
+                  <RNText style={{ fontSize: 13.5, color: palette.text }}>
+                    <RNText style={{ fontWeight: "700" }}>{historyLabel(h)}</RNText>
+                    {h.changed_by_name ? ` · ${h.changed_by_name}` : ""}
+                    <RNText style={{ color: palette.textMuted }}>{`  ${formatDateTimeSafe(h.changed_at)}`}</RNText>
+                  </RNText>
+                  {h.note ? <RNText style={{ fontSize: 13, color: palette.textMuted, marginTop: 2 }}>{`“${h.note}”`}</RNText> : null}
+                </RNView>
+              ))}
+            </RNView>
           )}
         </ScrollView>
       </Box>

@@ -13,8 +13,10 @@ jest.mock('@/context/useAux', () => () => ({
   loading: false,
   refresh: jest.fn(),
 }));
-jest.mock('expo-file-system', () => ({}));
-jest.mock('expo-sharing', () => ({}));
+const mockDownload = jest.fn(async () => ({}));
+const mockShare = jest.fn(async () => {});
+jest.mock('expo-file-system', () => ({ downloadAsync: (...a: any[]) => (mockDownload as any)(...a), documentDirectory: 'file:///docs/' }));
+jest.mock('expo-sharing', () => ({ isAvailableAsync: async () => true, shareAsync: (...a: any[]) => (mockShare as any)(...a) }));
 jest.mock('expo-image-picker', () => ({ MediaTypeOptions: { Images: 'Images' } }));
 jest.mock('expo-web-browser', () => ({}));
 const mockConfirm = jest.fn();
@@ -175,7 +177,7 @@ describe('SheetView', () => {
       expect(text(r.root)).toContain('No se pudo subir la foto');
     });
 
-    it('subida correcta: la linea guarda la URL publica y el nombre va saneado', async () => {
+    it('subida correcta: la linea guarda la ruta privada (foto_path) y el nombre va saneado', async () => {
       const r = await mount();
       await press(r.root, 'add-line');
       await fillForm(r.root);
@@ -184,7 +186,9 @@ describe('SheetView', () => {
       const path = (db.storageUpload.mock.calls[0] as any)[0] as string;
       expect(path).toMatch(/^expense-lines\/7\/\d+_Cafe_nandu_1\.jpg$/);
       const ins = db.calls.find((c) => c.op === 'insert');
-      expect(ins?.payload.foto).toBe('https://cdn.test/' + path);
+      // bucket privado: se guarda la RUTA (foto_path), no una URL publica
+      expect(ins?.payload.foto_path).toBe(path);
+      expect(ins?.payload.foto).toBeUndefined();
     });
 
     it('REGRESION: la foto de una linea no se adjunta a la siguiente', async () => {
@@ -259,6 +263,110 @@ describe('SheetView', () => {
       expect(onStatusChange).not.toHaveBeenCalled();
       expect(text(r.root)).toContain('No se pudo actualizar el estado');
       expect(text(r.root)).toContain('Linea cinco');
+    });
+  });
+
+  describe('adjuntos privados, referencia, motivo e historial', () => {
+    const lineWithPath = { id: 8, title: 'Con foto', amount: 5, tax: 21, date: '2026-03-02', foto_path: 'expense-lines/7/1_ticket.jpg', foto: null };
+    const lineLegacy = { id: 9, title: 'Antigua', amount: 6, tax: 21, date: '2026-03-02', foto: 'https://externo.test/a.jpg' };
+
+    beforeEach(() => {
+      mockDownload.mockClear();
+      mockShare.mockClear();
+      db.on('Expense_line', 'select', { data: [lineWithPath, lineLegacy] });
+    });
+
+    it('un adjunto con foto_path se abre con una URL FIRMADA (1 hora), no con una URL publica', async () => {
+      const r = await mount();
+      await press(r.root, 'open-attachment-8');
+      expect(db.storageSignedUrl).toHaveBeenCalledWith('expense-lines/7/1_ticket.jpg', 3600);
+      expect((mockDownload.mock.calls[0] as any)[0]).toBe('https://signed.test/expense-lines/7/1_ticket.jpg?token=t');
+    });
+
+    it('un adjunto antiguo (URL externa en foto) se abre directamente, sin pedir URL firmada', async () => {
+      const r = await mount();
+      await press(r.root, 'open-attachment-9');
+      expect(db.storageSignedUrl).not.toHaveBeenCalled();
+      expect((mockDownload.mock.calls[0] as any)[0]).toBe('https://externo.test/a.jpg');
+    });
+
+    it('si no se puede firmar la URL se avisa y no se descarga nada', async () => {
+      db.storageSignedUrl.mockResolvedValueOnce({ data: null, error: { message: 'not found' } });
+      const r = await mount();
+      await press(r.root, 'open-attachment-8');
+      expect(text(r.root)).toContain('No se pudo abrir el adjunto');
+      expect(mockDownload).not.toHaveBeenCalled();
+    });
+
+    it('muestra la referencia de la hoja', async () => {
+      const r = await mount({}, { reference: 'HG-000012' });
+      expect(text(r.root)).toContain('HG-000012');
+    });
+
+    it('hoja rechazada: el propietario ve el motivo', async () => {
+      const r = await mount({}, { status: { id: 3, name: 'Rechazado' }, review_note: 'Falta el ticket del hotel' });
+      expect(text(r.root)).toContain('Motivo: Falta el ticket del hotel');
+    });
+
+    it('hoja rechazada sin motivo: solo el aviso', async () => {
+      const r = await mount({}, { status: { id: 3, name: 'Rechazado' }, review_note: null });
+      expect(text(r.root)).toContain('Hoja rechazada');
+      expect(text(r.root)).not.toContain('Motivo:');
+    });
+
+    it('aprobador: el campo de motivo existe y se envia solo si hay texto (recortado)', async () => {
+      db.on('Expense_sheet', 'update', { data: null });
+      let r = await mount({ mode: 'approver' });
+      await type(r.root, 'review-note', '  Falta el ticket  ');
+      await press(r.root, 'reject-sheet');
+      expect(db.calls.find((c) => c.op === 'update')?.payload).toEqual({ id_status: '3', review_note: 'Falta el ticket' });
+      db.reset();
+      db.on('Expense_line', 'select', { data: [] });
+      db.on('Expense_sheet', 'update', { data: null });
+      r = await mount({ mode: 'approver' });
+      await press(r.root, 'approve-sheet');
+      expect(db.calls.find((c) => c.op === 'update')?.payload).toEqual({ id_status: '2' }); // sin motivo: sin clave
+    });
+
+    it('el propietario no ve el campo de motivo y al reenviar no envia motivo', async () => {
+      db.on('Expense_sheet', 'update', { data: null });
+      const r = await mount({}, { status: { id: 3, name: 'Rechazado' } });
+      expect(r.root.findAll((n: ReactTestInstance) => n.props.testID === 'review-note')).toHaveLength(0);
+      await press(r.root, 'resubmit-sheet');
+      expect(db.calls.find((c) => c.op === 'update')?.payload).toEqual({ id_status: '1' });
+    });
+
+    it('historial: lista los movimientos con quien, cuando y el motivo', async () => {
+      db.on('Sheet_status_history', 'select', {
+        data: [
+          { id: 1, id_sheet: 7, from_status: null, to_status: 1, changed_by_name: 'Ana Pérez', note: null, changed_at: '2026-03-01T09:00:00' },
+          { id: 2, id_sheet: 7, from_status: 1, to_status: 3, changed_by_name: 'Marta Ruiz', note: 'Falta el ticket', changed_at: '2026-03-02T10:30:00' },
+        ],
+      });
+      const r = await mount();
+      const t = text(r.root);
+      expect(t).toContain('Historial');
+      expect(t).toContain('Creada');
+      expect(t).toContain('Rechazada');
+      expect(t).toContain('Marta Ruiz');
+      expect(t).toContain('“Falta el ticket”');
+      expect(r.root.findAll((n: ReactTestInstance) => n.props.testID === 'history-row' && typeof n.type === 'string')).toHaveLength(2);
+      expect(db.calls.find((c) => c.table === 'Sheet_status_history')?.order).toEqual(['changed_at', { ascending: true }]);
+    });
+
+    it('si el historial falla o viene vacio, la hoja se sigue mostrando sin la seccion', async () => {
+      db.on('Sheet_status_history', 'select', { error: { message: 'no existe' } });
+      const r = await mount();
+      expect(text(r.root)).toContain('Con foto');
+      expect(text(r.root)).not.toContain('Historial');
+    });
+
+    it('tras aprobar se vuelve a pedir el historial', async () => {
+      db.on('Expense_sheet', 'update', { data: null });
+      const r = await mount({ mode: 'approver' });
+      const before = db.calls.filter((c) => c.table === 'Sheet_status_history').length;
+      await press(r.root, 'approve-sheet');
+      expect(db.calls.filter((c) => c.table === 'Sheet_status_history').length).toBeGreaterThan(before);
     });
   });
 });
