@@ -54,9 +54,15 @@ type SheetViewProps = {
   onStatusChange?: (newStatusId: number) => void;
   /** Escritorio: panel ancho con cabecera a la izquierda y lineas en tabla. */
   wide?: boolean;
+  /**
+   * owner: el empleado dueño de la hoja (añade/borra lineas mientras esta pendiente y la reenvia si la rechazan).
+   * approver: quien la aprueba (solo lectura + aprobar/rechazar). Un empleado ya no aprueba sus propias hojas.
+   */
+  mode?: "owner" | "approver";
 };
 
-export default function SheetView({ sheet, onClose, onStatusChange, wide = false }: SheetViewProps) {
+export default function SheetView({ sheet, onClose, onStatusChange, wide = false, mode = "owner" }: SheetViewProps) {
+  const isOwner = mode === "owner";
   const [lines, setLines] = useState<ExpenseLinePlain[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   // listError: fallo al cargar las lineas (sustituye a la lista).
@@ -393,23 +399,39 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
         </VStack>
         )}
 
+        {isOwner && statusId === SheetStatusID.PENDIENTE && (
+          <Text mt={8} fontSize="$sm" color="$coolGray600" testID="owner-hint-pending">
+            Pendiente de aprobación por tu responsable. Puedes editarla hasta entonces.
+          </Text>
+        )}
+        {isOwner && statusId === SheetStatusID.RECHAZADO && (
+          <Text mt={8} fontSize="$sm" color="$red600" testID="owner-hint-rejected">
+            Hoja rechazada. Reenvíala a aprobación para poder corregirla.
+          </Text>
+        )}
+
         {/* Acciones */}
         <HStack mt={16} mb={8} alignItems="center" justifyContent="space-between">
           <Heading size="md">Líneas de gasto</Heading>
           <HStack space="sm" alignItems="center">
-            {statusId !== SheetStatusID.APROBADO && (
-              <Button testID="approve-sheet" action="positive" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.APROBADO)}>
-                <Icon as={CheckCircle2} />
-                {wide && <ButtonText ml="$2">Aprobar</ButtonText>}
+            {!isOwner && statusId === SheetStatusID.PENDIENTE && (
+              <>
+                <Button testID="approve-sheet" action="positive" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.APROBADO)}>
+                  <Icon as={CheckCircle2} />
+                  <ButtonText ml="$2">Aprobar</ButtonText>
+                </Button>
+                <Button testID="reject-sheet" action="negative" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.RECHAZADO)}>
+                  <Icon as={XCircle} />
+                  <ButtonText ml="$2">Rechazar</ButtonText>
+                </Button>
+              </>
+            )}
+            {isOwner && statusId === SheetStatusID.RECHAZADO && (
+              <Button testID="resubmit-sheet" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.PENDIENTE)}>
+                <ButtonText>Reenviar a aprobación</ButtonText>
               </Button>
             )}
-            {statusId !== SheetStatusID.RECHAZADO && (
-              <Button testID="reject-sheet" action="negative" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.RECHAZADO)}>
-                <Icon as={XCircle} />
-                {wide && <ButtonText ml="$2">Rechazar</ButtonText>}
-              </Button>
-            )}
-            {statusId == SheetStatusID.PENDIENTE && (<Button testID="add-line" onPress={() => setCreateOpen((x) => !x)}>
+            {isOwner && statusId == SheetStatusID.PENDIENTE && (<Button testID="add-line" onPress={() => setCreateOpen((x) => !x)}>
               <Icon as={Plus} mr="$2" />
               <ButtonText>Añadir línea</ButtonText>
             </Button>)}
@@ -423,7 +445,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
           showsVerticalScrollIndicator
         >
           {/* Formulario de creación dentro del scroll */}
-          {createOpen && (
+          {isOwner && createOpen && (
             <VStack space="md" mb={16}>
               <FormControl>
                 <FormControlLabel>
@@ -621,7 +643,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
                         <Icon as={Download} />
                       </Pressable>
                     )}
-                    {statusId === SheetStatusID.PENDIENTE && (
+                    {isOwner && statusId === SheetStatusID.PENDIENTE && (
                       <Pressable
                         testID={`delete-line-${line.id}`}
                         onPress={() => deleteLine(line)}
@@ -678,7 +700,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
                           </HStack>
                         </Pressable>
                       )}
-                      {statusId === SheetStatusID.PENDIENTE && (
+                      {isOwner && statusId === SheetStatusID.PENDIENTE && (
                       <Pressable
                         testID={`delete-line-${line.id}`}
                         onPress={() => deleteLine(line)}

@@ -133,25 +133,31 @@ describe('TicketsScreen', () => {
     });
   });
 
-  describe('detalle', () => {
-    it('REGRESION: al aprobar una hoja la lista se refresca (antes la tarjeta quedaba con el estado viejo)', async () => {
-      let approved = false;
-      db.on('expense_sheet_with_total', 'select', () => ({
-        data: [sheetRow(1, 'Hoja uno', approved ? 2 : 1)],
-      }));
-      db.on('Expense_sheet', 'update', () => {
-        approved = true;
-        return { data: null };
-      });
+  describe('detalle (propietario)', () => {
+    it('REGRESION: el propietario NO ve botones de aprobar/rechazar (ya no se aprueba a si mismo)', async () => {
+      db.on('expense_sheet_with_total', 'select', { data: [sheetRow(1, 'Hoja uno', 1)] });
       const r = await mount(<TicketsScreen />);
       await press(r.root, 'sheet-open');
+      expect(r.root.findAll((n) => n.props.testID === 'approve-sheet')).toHaveLength(0);
+      expect(r.root.findAll((n) => n.props.testID === 'reject-sheet')).toHaveLength(0);
+      expect(text(r.root)).toContain('Pendiente de aprobación');
+    });
+
+    it('hoja rechazada: aviso y "Reenviar a aprobacion" pasa a pendiente (3 -> 1) y refresca la lista', async () => {
+      let resubmitted = false;
+      db.on('expense_sheet_with_total', 'select', () => ({ data: [sheetRow(1, 'Hoja uno', resubmitted ? 1 : 3)] }));
+      db.on('Expense_sheet', 'update', () => ((resubmitted = true), { data: null }));
+      const r = await mount(<TicketsScreen />);
+      await press(r.root, 'sheet-open');
+      expect(text(r.root)).toContain('Hoja rechazada');
+      expect(r.root.findAll((n) => n.props.testID === 'add-line')).toHaveLength(0);
       const before = sheetsQuery().length;
-      await press(r.root, 'approve-sheet');
+      await press(r.root, 'resubmit-sheet');
       await flush();
-      expect(db.calls.find((c) => c.op === 'update')?.payload).toEqual({ id_status: '2' });
+      expect(db.calls.find((c) => c.op === 'update')?.payload).toEqual({ id_status: '1' });
       expect(sheetsQuery().length).toBeGreaterThan(before);
-      // la cabecera del detalle muestra ya el nuevo estado
-      expect(text(r.root)).toContain('Aprobado');
+      expect(text(r.root)).toContain('Pendiente de aprobación');
+      expect(r.root.findAll((n) => n.props.testID === 'resubmit-sheet')).toHaveLength(0);
     });
   });
 });

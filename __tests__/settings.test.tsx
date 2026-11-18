@@ -33,18 +33,32 @@ describe('SettingsScreen', () => {
     expect(db.calls).toHaveLength(0);
   });
 
-  it('admin: consulta las estadisticas de sus administrados', async () => {
-    db.on('expense_dashboard_stats', 'select', { data: [stat('u1', 'u1-view-name')] });
-    db.on('employees', 'select', { data: [{ id_user: 'u1', name: 'Ana Pérez' }] });
+  it('admin: consulta la vista de equipo sin filtrar por id_admin (lo decide RLS) y no vuelve a consultar employees', async () => {
+    db.on('expense_dashboard_stats', 'select', { data: [stat('u1', 'Ana Pérez')] });
     await mount(<SettingsScreen />);
-    expect(db.calls[0].filters).toEqual([['id_admin', 'admin1']]);
+    expect(db.calls).toHaveLength(1);
+    expect(db.calls[0].table).toBe('expense_dashboard_stats');
+    expect(db.calls[0].filters).toEqual([]);
   });
 
-  it('REGRESION: muestra el nombre del empleado (se buscaba por r.name en vez de r.id_user)', async () => {
-    db.on('expense_dashboard_stats', 'select', { data: [stat('u1', 'nombre-de-la-vista')] });
-    db.on('employees', 'select', { data: [{ id_user: 'u1', name: 'Ana Pérez' }] });
+  it('muestra el nombre que trae la vista', async () => {
+    db.on('expense_dashboard_stats', 'select', { data: [stat('u1', 'Ana Pérez')] });
     const r = await mount(<SettingsScreen />);
     expect(text(r.root)).toContain('Ana Pérez');
+  });
+
+  it('excluye la fila del propio administrador (la vista tambien la devuelve)', async () => {
+    db.on('expense_dashboard_stats', 'select', { data: [stat('admin1', 'Marta Ruiz'), stat('u1', 'Ana Pérez')] });
+    const r = await mount(<SettingsScreen />);
+    expect(text(r.root)).toContain('Ana Pérez');
+    expect(text(r.root)).not.toContain('Marta Ruiz');
+    expect(text(r.root)).toMatch(/Personas\s*1/);
+  });
+
+  it('persona sin nombre -> "Sin nombre"', async () => {
+    db.on('expense_dashboard_stats', 'select', { data: [{ ...stat('u1', 'x'), name: null }] });
+    const r = await mount(<SettingsScreen />);
+    expect(text(r.root)).toContain('Sin nombre');
   });
 
   it('sin filas -> mensaje', async () => {
@@ -63,7 +77,6 @@ describe('SettingsScreen', () => {
     db.on('expense_dashboard_stats', 'select', {
       data: [{ ...stat('u1', 'A'), total_amount: 1500.5, pending_sheets: 3, total_expense_sheets: 4 }, { ...stat('u2', 'B'), total_amount: 2000, pending_sheets: 1, total_expense_sheets: 5 }],
     });
-    db.on('employees', 'select', { data: [] });
     const r = await mount(<SettingsScreen />);
     const t = text(r.root).replace(/\s+/g, ' ');
     expect(t).toContain('3.500,50 €');
@@ -74,7 +87,6 @@ describe('SettingsScreen', () => {
 
   it('escritorio muestra las columnas de detalle; movil solo persona y total', async () => {
     db.on('expense_dashboard_stats', 'select', { data: [stat('u1', 'Ana')] });
-    db.on('employees', 'select', { data: [] });
     let r = await mount(<SettingsScreen />);
     expect(text(r.root)).toContain('Aprob.');
     mockWidth = 390;
@@ -84,8 +96,7 @@ describe('SettingsScreen', () => {
   });
 
   it('avatar con iniciales del empleado', async () => {
-    db.on('expense_dashboard_stats', 'select', { data: [stat('u1', 'x')] });
-    db.on('employees', 'select', { data: [{ id_user: 'u1', name: 'Luis Gómez' }] });
+    db.on('expense_dashboard_stats', 'select', { data: [stat('u1', 'Luis Gómez')] });
     const r = await mount(<SettingsScreen />);
     expect(text(r.root)).toContain('LG');
   });

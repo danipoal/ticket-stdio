@@ -17,7 +17,6 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<DashboardStats[]>([])
-  const [userNames, setUserNames] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const run = async () => {
@@ -31,31 +30,16 @@ export default function SettingsScreen() {
 
       setLoading(true)
       setError(null)
-      const { data, error } = await supabase
-        .from("expense_dashboard_stats")
-        .select("*")
-        .eq("id_admin", employee.id)
+      // La base de datos (RLS) ya limita las filas a las personas que este administrador aprueba;
+      // la vista devuelve tambien su propia fila, que aqui se excluye.
+      const { data, error } = await supabase.from("expense_dashboard_stats").select("*")
 
       if (error) {
         setError("Error cargando estadísticas de administrados")
         setRows([])
       } else {
-        const stats = (data ?? []) as DashboardStats[]
+        const stats = ((data ?? []) as DashboardStats[]).filter((r) => r.id_user !== employee.id)
         setRows(stats)
-        const ids = Array.from(new Set(stats.map((s) => s.id_user).filter(Boolean)))
-        if (ids.length > 0) {
-          const { data: emps, error: empErr } = await supabase
-            .from("employees")
-            .select("id_user,name")
-            .in("id_user", ids)
-          if (!empErr && emps) {
-            const map: Record<string, string> = {}
-            for (const e of emps as any[]) {
-              if (e.id_user) map[e.id_user] = e.name ?? e.id_user
-            }
-            setUserNames(map)
-          }
-        }
       }
       setLoading(false)
     }
@@ -127,7 +111,7 @@ export default function SettingsScreen() {
               <Text style={s.muted}>No hay estadísticas para mostrar.</Text>
             ) : (
               rows.map((r) => {
-                const name = userNames[r.id_user] ?? r.name
+                const name = r.name ?? "Sin nombre"
                 const amount = Number(r.total_amount || 0)
                 return (
                   <View key={r.id_user} style={s.tr}>

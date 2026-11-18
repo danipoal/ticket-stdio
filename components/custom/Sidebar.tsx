@@ -1,14 +1,14 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Home, Ticket, Settings, User, LogOut } from 'lucide-react-native';
+import { Home, Ticket, Settings, User, LogOut, ClipboardCheck } from 'lucide-react-native';
 import { palette } from '@/constants/theme';
 import useAuth from '@/context/useAuth';
 import { supabase } from '@/utils/supabase';
 import { initials } from '@/utils/dashboard';
 import { Avatar } from './ui';
 
-const ICONS: Record<string, any> = { home: Home, tickets: Ticket, settings: Settings, user: User };
+const ICONS: Record<string, any> = { home: Home, tickets: Ticket, approvals: ClipboardCheck, settings: Settings, user: User };
 
 /** Barra de navegacion lateral para escritorio (sustituye a la barra inferior). */
 export default function Sidebar({ state, descriptors, navigation }: BottomTabBarProps) {

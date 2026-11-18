@@ -40,12 +40,22 @@ describe('CreateSheetView', () => {
     });
   });
 
-  it('un empleado normal no ve el selector de estado; un admin si', async () => {
-    let r = await mount(<CreateSheetView />);
-    expect(text(r.root)).not.toContain('Estado');
+  it('nadie ve selector de estado ni fecha de aprobacion: la hoja siempre nace pendiente (admin incluido)', async () => {
+    for (const is_admin of [false, true]) {
+      mockEmployee = { id: 'e1', is_admin };
+      const r = await mount(<CreateSheetView />);
+      expect(text(r.root)).not.toContain('Estado');
+      expect(text(r.root)).not.toContain('aprobación');
+    }
+  });
+
+  it('un admin tambien crea la hoja en estado Pendiente (1)', async () => {
     mockEmployee = { id: 'e1', is_admin: true };
-    r = await mount(<CreateSheetView />);
-    expect(text(r.root)).toContain('Estado');
+    const onCreate = jest.fn().mockResolvedValue(null);
+    const r = await mount(<CreateSheetView onCreate={onCreate} />);
+    await fill(r);
+    await press(r.root, 'sheet-create');
+    expect(onCreate.mock.calls[0][0]).toMatchObject({ id_status: '1', approval_date: null });
   });
 
   it('si onCreate devuelve error se muestra y el formulario conserva los datos', async () => {

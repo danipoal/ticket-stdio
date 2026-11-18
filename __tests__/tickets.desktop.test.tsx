@@ -63,11 +63,12 @@ describe('TicketsScreen en escritorio (maestro-detalle)', () => {
     expect(t).not.toContain('Selecciona una hoja');
   });
 
-  it('en una hoja pendiente los botones Aprobar/Rechazar llevan texto', async () => {
+  it('el propietario no ve Aprobar/Rechazar; ve el aviso de pendiente de aprobacion', async () => {
     const r = await mount(<TicketsScreen />);
     await press(r.root, 'sheet-open');
-    expect(text(r.root)).toContain('Aprobar');
-    expect(text(r.root)).toContain('Rechazar');
+    expect(text(r.root)).not.toContain('Aprobar');
+    expect(text(r.root)).not.toContain('Rechazar');
+    expect(text(r.root)).toContain('Pendiente de aprobación por tu responsable');
   });
 
   it('la busqueda filtra la lista sin acentos', async () => {
@@ -120,16 +121,19 @@ describe('TicketsScreen en escritorio (maestro-detalle)', () => {
     expect(r.root.findAll((n) => n.props.testID === 'sheet-toolbar')).toHaveLength(0);
   });
 
-  it('al aprobar, la lista del panel izquierdo se refresca', async () => {
-    let approved = false;
-    db.on('expense_sheet_with_total', 'select', () => ({ data: data.map((s) => (s.id === 1 && approved ? { ...s, status: { id: 2, name: 'Aprobado' } } : s)) }));
-    db.on('Expense_sheet', 'update', () => ((approved = true), { data: null }));
+  it('al reenviar una hoja rechazada, la lista del panel izquierdo se refresca', async () => {
+    let resubmitted = false;
+    db.on('expense_sheet_with_total', 'select', () => ({
+      data: data.map((s) => (s.id === 3 ? { ...s, status: { id: resubmitted ? 1 : 3, name: resubmitted ? 'Pendiente' : 'Rechazado' } } : s)),
+    }));
+    db.on('Expense_sheet', 'update', () => ((resubmitted = true), { data: null }));
     const r = await mount(<TicketsScreen />);
+    await press(r.root, 'filter-3');
     await press(r.root, 'sheet-open');
-    await press(r.root, 'approve-sheet');
+    await press(r.root, 'resubmit-sheet');
     await act(async () => {});
     await flush();
     expect(db.calls.filter((c) => c.table === 'expense_sheet_with_total').length).toBeGreaterThanOrEqual(2);
-    expect(text(r.root)).toContain('Aprobado');
+    expect(text(r.root)).toContain('Pendiente de aprobación');
   });
 });

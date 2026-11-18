@@ -246,7 +246,7 @@ describe('SheetView', () => {
     it('cambiar el estado avisa al padre con el nuevo estado', async () => {
       db.on('Expense_sheet', 'update', { data: null });
       const onStatusChange = jest.fn();
-      const r = await mount({ onStatusChange });
+      const r = await mount({ onStatusChange, mode: 'approver' });
       await press(r.root, 'reject-sheet');
       expect(onStatusChange).toHaveBeenCalledWith(3);
     });
@@ -254,7 +254,7 @@ describe('SheetView', () => {
     it('si falla el cambio de estado no avisa al padre y muestra el error', async () => {
       db.on('Expense_sheet', 'update', { error: { message: 'rls' } });
       const onStatusChange = jest.fn();
-      const r = await mount({ onStatusChange });
+      const r = await mount({ onStatusChange, mode: 'approver' });
       await press(r.root, 'approve-sheet');
       expect(onStatusChange).not.toHaveBeenCalled();
       expect(text(r.root)).toContain('No se pudo actualizar el estado');
