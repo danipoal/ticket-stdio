@@ -11,6 +11,7 @@ describe('friendlyAuthError', () => {
     ['Unable to validate email address: invalid format', 'El email no es válido'],
     ['New password should be different from the old password.', 'La nueva contraseña debe ser distinta de la anterior'],
     ['Auth session missing!', 'El enlace ha caducado. Pide uno nuevo'],
+    ['For security purposes, you can only request this after 27 seconds.', 'Espera unos segundos antes de volver a pedirlo'],
   ])('%s', (input, expected) => {
     expect(friendlyAuthError(input)).toBe(expected);
   });

@@ -162,6 +162,27 @@ const bad = (errors) => errors.filter((e) => !/favicon|Failed to load resource/i
     await page.waitForFunction(() => document.body.innerText.includes('Si existe una cuenta con ese correo'), { timeout: 10000 }).catch(() => {});
     check('recuperar: mensaje generico tras enviar', (await textOf(page)).includes('Si existe una cuenta con ese correo'));
 
+    // con la sesion abierta tambien se puede pedir otro enlace (caso real: enlace caducado -> "Pedir un enlace nuevo")
+    {
+      const ctx3 = await browser.createBrowserContext();
+      const p3 = await ctx3.newPage();
+      await p3.setViewport({ width: 1440, height: 900 });
+      await p3.goto(BASE + '/auth/login', { waitUntil: 'load', timeout: 60000 });
+      await p3.waitForSelector('[data-testid="login-email"]');
+      await p3.type('[data-testid="login-email"]', 'ana@demo.test');
+      await p3.type('[data-testid="login-password"]', 'x');
+      await (await p3.$('[data-testid="login-submit"]')).click();
+      await p3.waitForFunction(() => location.pathname.endsWith('/home'), { timeout: 20000 }).catch(() => {});
+      await p3.goto(BASE + '/auth/forgot', { waitUntil: 'load' });
+      await wait(2500);
+      check('con la sesion abierta /auth/forgot NO redirige a la home', p3.url().includes('/auth/forgot') && (await has(p3, 'forgot-email')), p3.url());
+      await p3.type('[data-testid="forgot-email"]', 'ana@demo.test');
+      await p3.click('[data-testid="forgot-submit"]');
+      await p3.waitForFunction(() => document.body.innerText.includes('Si existe una cuenta con ese correo'), { timeout: 10000 }).catch(() => {});
+      check('con la sesion abierta se puede pedir otro enlace', (await textOf(p3)).includes('Si existe una cuenta con ese correo'));
+      await ctx3.close();
+    }
+
     // enlace caducado
     await page.goto(BASE + '/auth/reset#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired', { waitUntil: 'load' });
     await page.waitForFunction(() => document.body.innerText.includes('caducado'), { timeout: 10000 }).catch(() => {});

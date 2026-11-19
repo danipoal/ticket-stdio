@@ -11,6 +11,7 @@ export function friendlyAuthError(message: string | undefined | null): string {
     return 'Este email ya está registrado';
   }
   if (m.includes('password should be at least')) return 'La contraseña es demasiado corta';
+  if (m.includes('for security purposes') || m.includes('after') && m.includes('seconds')) return 'Espera unos segundos antes de volver a pedirlo';
   if (m.includes('rate limit') || m.includes('too many')) {
     return 'Demasiados intentos. Espera un momento y vuelve a probar';
   }

@@ -48,8 +48,13 @@ describe('routeForState', () => {
       expect(s('/auth/reset', false, false)).toBeNull();
     });
     it('otras rutas de /auth siguen yendo a la home con sesion', () => {
-      expect(s('/auth/forgot', true, true)).toBe('/(tabs)/home');
       expect(s('/auth/confirmed', true, true)).toBe('/(tabs)/home');
+      expect(s('/auth/login', true, true)).toBe('/(tabs)/home');
+    });
+    it('REGRESION: con la sesion abierta /auth/forgot SE PUEDE usar (el enlace caducado lleva ahi y el guardia lo devolvia a la home sin enviar nada)', () => {
+      expect(s('/auth/forgot', true, true)).toBeNull();
+      expect(s('/auth/forgot', true, false)).toBeNull();
+      expect(s('/auth/forgot#x', true, true)).toBeNull();
     });
     it('/auth/confirmed y /auth/forgot son accesibles sin sesion', () => {
       expect(s('/auth/confirmed', false, false)).toBeNull();
