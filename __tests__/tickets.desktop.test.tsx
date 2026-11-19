@@ -101,11 +101,17 @@ describe('TicketsScreen en escritorio (maestro-detalle)', () => {
   });
 
   it('borrar desde la lista pide confirmacion y usa el id correcto', async () => {
-    db.on('Expense_sheet', 'delete', { data: null });
+    db.on('Expense_sheet', 'delete', { data: [{ id: 1 }] });
     const r = await mount(<TicketsScreen />);
     await press(r.root, 'sheet-delete');
     expect(mockConfirm).toHaveBeenCalled();
     expect(db.calls.find((c) => c.op === 'delete')?.filters).toEqual([['id', 1]]);
+  });
+
+  it('REGRESION: la hoja aprobada no tiene papelera en la lista de escritorio', async () => {
+    const r = await mount(<TicketsScreen />);
+    const trashes = r.root.findAll((n) => n.props.testID === 'sheet-delete' && typeof n.type === 'string').length;
+    expect(trashes).toBe(2); // pendiente (id 1) y rechazada (id 3); la aprobada (id 2) no
   });
 
   it('REGRESION: el boton de borrar no esta anidado dentro del boton de abrir (HTML invalido)', async () => {

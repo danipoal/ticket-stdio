@@ -13,7 +13,7 @@ import SheetListItem from "@/components/custom/SheetListItem";
 import { Card, Chip, PrimaryButton } from "@/components/custom/ui";
 import { palette } from "@/constants/theme";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
-import { filterSheets, statusCounts, StatusFilter } from "@/utils/sheets";
+import { canDeleteSheet, filterSheets, statusCounts, StatusFilter } from "@/utils/sheets";
 import { ExpenseSheet, ExpenseSheetPlain } from "@/constants/types";
 import { confirmAction } from "@/utils/confirm";
 
@@ -75,13 +75,30 @@ export default function TicketsScreen() {
     );
     if (!ok) return;
 
-    const { error } = await supabase
+    // Los adjuntos van a un bucket privado y solo se pueden borrar mientras la hoja existe y esta pendiente:
+    // se quitan ANTES de borrar la hoja (si falla se sigue: es una limpieza, no debe impedir el borrado).
+    try {
+      const { data: lineRows } = await supabase.from('Expense_line').select('foto_path').eq('id_sheet', sheet.id);
+      const paths = ((lineRows ?? []) as { foto_path?: string | null }[]).map((l) => l.foto_path).filter((p): p is string => !!p);
+      if (paths.length > 0) await supabase.storage.from('tickets').remove(paths);
+    } catch {
+      /* limpieza de adjuntos opcional */
+    }
+
+    // .select() devuelve las filas borradas: sin error pero con 0 filas significa que la base de datos
+    // (RLS) no lo permite, p. ej. una hoja ya aprobada.
+    const { data: deleted, error } = await supabase
       .from('Expense_sheet')
       .delete()
-      .eq('id', sheet.id);
+      .eq('id', sheet.id)
+      .select('id');
 
     if (error) {
       setActionError("No se pudo eliminar la hoja");
+      return;
+    }
+    if (!deleted || deleted.length === 0) {
+      setActionError("No se puede eliminar esta hoja: ya no está pendiente");
       return;
     }
 
@@ -91,7 +108,7 @@ export default function TicketsScreen() {
 
   // Devuelve un mensaje de error (el formulario sigue abierto) o null si fue bien.
   const onCreateSheet = async (values: ExpenseSheetPlain): Promise<string | null> => {
-    const { error } = await supabase
+    const { data: created, error } = await supabase
       .from('Expense_sheet')
       .insert(values)
       .select()
@@ -101,7 +118,11 @@ export default function TicketsScreen() {
       return "No se pudo crear la hoja. Inténtalo de nuevo";
     }
     setCreateSheetView(false);
-    fetchExpenseSheets();
+    // Abrir la hoja recien creada para poder añadir lineas directamente
+    const list = await fetchExpenseSheets();
+    const createdId = (created as { id?: number } | null)?.id;
+    const opened = createdId ? list.find((s) => s.id === createdId) : undefined;
+    if (opened) setSelectedSheet(opened);
     return null;
   };
 
@@ -140,6 +161,7 @@ export default function TicketsScreen() {
       wide={isDesktop}
       onClose={() => setSelectedSheet(null)}
       onStatusChange={() => fetchExpenseSheets()}
+      onLinesChange={() => fetchExpenseSheets()}
     />
   ) : (
     <Card style={s.placeholder} testID="detail-placeholder">
@@ -181,7 +203,7 @@ export default function TicketsScreen() {
                     sheet={sheet}
                     selected={selectedSheet?.id === sheet.id && !createSheetView}
                     onPress={() => { setCreateSheetView(false); setSelectedSheet(sheet); }}
-                    onDelete={deleteSheet}
+                    onDelete={canDeleteSheet(sheet) ? deleteSheet : undefined}
                   />
                 ))}
               </ScrollView>
@@ -218,6 +240,7 @@ export default function TicketsScreen() {
             sheet={selectedSheet}
             onClose={() => setSelectedSheet(null)}
             onStatusChange={() => fetchExpenseSheets()}
+      onLinesChange={() => fetchExpenseSheets()}
           />
         )}
 
@@ -262,7 +285,7 @@ export default function TicketsScreen() {
                 onPress={() => { 
                   setSelectedSheet(sheet);
                 }}
-                onDelete={() => deleteSheet(sheet)}
+                onDelete={canDeleteSheet(sheet) ? () => deleteSheet(sheet) : undefined}
               />
             ))}
           </ScrollView>

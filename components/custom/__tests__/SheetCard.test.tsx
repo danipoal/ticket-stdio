@@ -54,4 +54,9 @@ describe('SheetCard', () => {
     expect(await color(3)).toBe('$red400');
     expect(await color(1)).toBe('$white');
   });
+
+  it('REGRESION: sin onDelete no hay papelera (hojas aprobadas)', async () => {
+    const r = await mount(<SheetCard sheet={base} onPress={jest.fn()} />);
+    expect(r.root.findAll((n) => n.props.testID === 'sheet-delete')).toHaveLength(0);
+  });
 });

@@ -53,6 +53,8 @@ type SheetViewProps = {
   onClose?: () => void;
   /** Se llama tras cambiar el estado con exito, para que la lista se refresque. */
   onStatusChange?: (newStatusId: number) => void;
+  /** Se llama tras añadir o borrar una linea, para que la lista de hojas refresque su total. */
+  onLinesChange?: () => void;
   /** Escritorio: panel ancho con cabecera a la izquierda y lineas en tabla. */
   wide?: boolean;
   /**
@@ -62,7 +64,7 @@ type SheetViewProps = {
   mode?: "owner" | "approver";
 };
 
-export default function SheetView({ sheet, onClose, onStatusChange, wide = false, mode = "owner" }: SheetViewProps) {
+export default function SheetView({ sheet, onClose, onStatusChange, onLinesChange, wide = false, mode = "owner" }: SheetViewProps) {
   const isOwner = mode === "owner";
   const [lines, setLines] = useState<ExpenseLinePlain[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -127,7 +129,8 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
       .from("Sheet_status_history")
       .select("*")
       .eq("id_sheet", sheet.id)
-      .order("changed_at", { ascending: true });
+      // Por orden de registro (id): las hojas antiguas tienen fecha de aprobacion anterior a la de creacion
+      .order("id", { ascending: true });
     // El historial es informativo: si falla (p. ej. aun no existe la tabla) la hoja se sigue usando
     setHistory(error ? [] : ((data ?? []) as SheetHistoryEntry[]));
   };
@@ -285,9 +288,16 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
     setFormErrors({});
     setCreateOpen(false);
     fetchExpenseLines();
+    onLinesChange?.();
   };
 
   const formatDate = formatDateSafe;
+
+  // El total de la cabecera sigue a las lineas cargadas (antes se quedaba con el valor de la lista hasta recargar)
+  const displayTotal = useMemo(() => {
+    if (loading || listError) return sheet.total_amount;
+    return Math.round(lines.reduce((a, l) => a + Number(l.amount ?? 0), 0) * 100) / 100;
+  }, [lines, loading, listError, sheet.total_amount]);
 
   const categoryNames = useMemo(() => Object.fromEntries(categories.map((c) => [String(c.id), c.name])), [categories]);
   const paymentNames = useMemo(() => Object.fromEntries(paymentTypes.map((c) => [String(c.id), c.name])), [paymentTypes]);
@@ -296,9 +306,18 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
     if (!line.id) return;
     const ok = await confirmAction("Eliminar línea", `¿Eliminar "${line.title}"?`);
     if (!ok) return;
+    // El adjunto (bucket privado) solo se puede borrar mientras la hoja esta pendiente: antes que la fila
+    if (line.foto_path) {
+      try {
+        await supabase.storage.from("tickets").remove([line.foto_path]);
+      } catch {
+        /* limpieza opcional: no impide borrar la linea */
+      }
+    }
     const { error } = await supabase.from("Expense_line").delete().eq("id", line.id);
     if (!error) {
       fetchExpenseLines();
+      onLinesChange?.();
     } else {
       setActionError("Error eliminando la línea");
     }
@@ -405,7 +424,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
                 ["Proyecto", sheet.project || "-"],
                 ["Creada", formatDate(sheet.create_date)],
                 ["Líneas", String(lines.length)],
-                ["Total", `${formatAmount(sheet.total_amount)} €`],
+                ["Total", `${formatAmount(displayTotal)} €`],
               ].map(([k, v]) => (
                 <RNView key={k} style={{ backgroundColor: palette.bg, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, minWidth: 110 }}>
                   <RNText style={{ fontSize: 11.5, color: palette.textMuted, fontWeight: "600" }}>{k}</RNText>
@@ -435,7 +454,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
           </HStack>
           <HStack space="md" justifyContent="center">
             <Text>
-              Total: <Text fontWeight="$bold">{formatAmount(sheet.total_amount)} €</Text>
+              Total: <Text fontWeight="$bold">{formatAmount(displayTotal)} €</Text>
             </Text>
             <Text color="$coolGray600">
               Creado: {formatDate(sheet.create_date)}
@@ -484,11 +503,11 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
               </>
             )}
             {isOwner && statusId === SheetStatusID.RECHAZADO && (
-              <Button testID="resubmit-sheet" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.PENDIENTE)}>
+              <Button testID="resubmit-sheet" bg="$indigo600" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.PENDIENTE)}>
                 <ButtonText>Reenviar a aprobación</ButtonText>
               </Button>
             )}
-            {isOwner && statusId == SheetStatusID.PENDIENTE && (<Button testID="add-line" onPress={() => setCreateOpen((x) => !x)}>
+            {isOwner && statusId == SheetStatusID.PENDIENTE && (<Button testID="add-line" bg="$indigo600" onPress={() => setCreateOpen((x) => !x)}>
               <Icon as={Plus} mr="$2" />
               <ButtonText>Añadir línea</ButtonText>
             </Button>)}
@@ -657,7 +676,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, wide = false
                 <Button variant="outline" action="secondary" onPress={() => setCreateOpen(false)}>
                   <ButtonText>Cancelar</ButtonText>
                 </Button>
-                <Button testID="save-line" onPress={handleCreateLine}>
+                <Button testID="save-line" bg="$indigo600" onPress={handleCreateLine}>
                   <ButtonText>Guardar línea</ButtonText>
                 </Button>
               </HStack>

@@ -38,6 +38,9 @@ export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewPr
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // El aviso de un campo desaparece en cuanto el usuario lo corrige (antes se quedaba hasta volver a pulsar Crear)
+  const clearError = (key: string) => setErrors((e) => (e[key] ? Object.fromEntries(Object.entries(e).filter(([k]) => k !== key)) : e));
+
   const handleCreate = async () => {
     if (submitting) return;
     setSubmitError(null);
@@ -100,7 +103,7 @@ export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewPr
               <FormControlLabelText>Título</FormControlLabelText>
             </FormControlLabel>
             <Input>
-              <InputField testID="sheet-title" value={title} onChangeText={setTitle} placeholder="Introduce un título" />
+              <InputField testID="sheet-title" value={title} onChangeText={(v) => { setTitle(v); clearError("title"); }} placeholder="Introduce un título" />
             </Input>
             {errors.title ? <Text color="$red600" fontSize="$sm">{errors.title}</Text> : null}
           </FormControl>
@@ -119,7 +122,7 @@ export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewPr
               <FormControlLabelText>Proyecto</FormControlLabelText>
             </FormControlLabel>
             <Input>
-              <InputField testID="sheet-project" value={project} onChangeText={setProject} placeholder="Nombre del proyecto" />
+              <InputField testID="sheet-project" value={project} onChangeText={(v) => { setProject(v); clearError("project"); }} placeholder="Nombre del proyecto" />
             </Input>
             {errors.project ? <Text color="$red600" fontSize="$sm">{errors.project}</Text> : null}
           </FormControl>
@@ -130,7 +133,7 @@ export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewPr
           ) : null}
 
           <HStack space="sm" justifyContent="center">
-            <Button testID="sheet-create" onPress={handleCreate} isDisabled={submitting}>
+            <Button testID="sheet-create" bg="$indigo600" onPress={handleCreate} isDisabled={submitting}>
               <ButtonText>{submitting ? "Creando..." : "Crear"}</ButtonText>
             </Button>
           </HStack>

@@ -97,4 +97,16 @@ describe('CreateSheetView', () => {
     expect(onCreate).toHaveBeenCalledTimes(1);
     await act(async () => { done(null); });
   });
+
+  it('REGRESION: el aviso de un campo desaparece en cuanto se corrige (no hay que volver a pulsar Crear)', async () => {
+    const r = await mount(<CreateSheetView onCreate={jest.fn()} />);
+    await press(r.root, 'sheet-create');
+    expect(text(r.root)).toContain('El título es obligatorio');
+    expect(text(r.root)).toContain('El proyecto es obligatorio');
+    await type(r.root, 'sheet-title', 'Viaje');
+    expect(text(r.root)).not.toContain('El título es obligatorio');
+    expect(text(r.root)).toContain('El proyecto es obligatorio'); // el otro sigue hasta que se corrija
+    await type(r.root, 'sheet-project', 'Alfa');
+    expect(text(r.root)).not.toContain('El proyecto es obligatorio');
+  });
 });
