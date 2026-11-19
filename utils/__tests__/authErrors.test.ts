@@ -9,6 +9,8 @@ describe('friendlyAuthError', () => {
     ['Email rate limit exceeded', 'Demasiados intentos. Espera un momento y vuelve a probar'],
     ['TypeError: Failed to fetch', 'No se pudo conectar con el servidor. Revisa tu conexión'],
     ['Unable to validate email address: invalid format', 'El email no es válido'],
+    ['New password should be different from the old password.', 'La nueva contraseña debe ser distinta de la anterior'],
+    ['Auth session missing!', 'El enlace ha caducado. Pide uno nuevo'],
   ])('%s', (input, expected) => {
     expect(friendlyAuthError(input)).toBe(expected);
   });

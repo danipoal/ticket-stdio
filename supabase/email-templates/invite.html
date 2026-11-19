@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es"><body style="margin:0;background:#f4f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111827">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f5f9;padding:32px 12px"><tr><td align="center">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:14px;border:1px solid #e5e7ee">
+    <tr><td style="padding:22px 28px;border-bottom:1px solid #eef0f5;font-size:17px;font-weight:800;letter-spacing:-0.3px">Ticket Stdio</td></tr>
+    <tr><td style="padding:28px">
+      <h1 style="margin:0 0 12px;font-size:22px;line-height:1.25">Te han invitado a Ticket Stdio</h1>
+      <p style="margin:0;font-size:15px;line-height:1.55;color:#374151">Alguien de tu empresa te ha invitado a usar Ticket Stdio. Pulsa el botón para aceptar la invitación y crear tu cuenta.</p>
+      <table role="presentation" cellspacing="0" cellpadding="0" style="margin:26px 0"><tr><td style="background:#4f46e5;border-radius:10px">
+        <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:13px 26px;color:#ffffff;font-weight:700;font-size:15px;text-decoration:none">Aceptar invitación</a>
+      </td></tr></table>
+      <p style="margin:0 0 6px;font-size:12.5px;color:#6b7280">Si el botón no funciona, copia este enlace en tu navegador:</p>
+      <p style="margin:0 0 22px;font-size:12.5px;word-break:break-all"><a href="{{ .ConfirmationURL }}" style="color:#4f46e5">{{ .ConfirmationURL }}</a></p>
+      <p style="margin:0;font-size:14px;line-height:1.55;color:#374151">Si no conoces a quien te invita, ignora este mensaje.</p>
+      
+    </td></tr>
+    <tr><td style="padding:16px 28px;border-top:1px solid #eef0f5;font-size:12px;color:#9ca3af">Este mensaje se ha enviado a {{ .Email }}. Si no esperabas este correo puedes ignorarlo.</td></tr>
+  </table>
+</td></tr></table></body></html>
