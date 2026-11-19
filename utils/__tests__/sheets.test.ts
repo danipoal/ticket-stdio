@@ -1,4 +1,4 @@
-import { filterSheets, statusCounts } from '../sheets';
+import { canDeleteSheet, filterSheets, statusCounts } from '../sheets';
 
 const s = (id: number, title: string, project: string, status: number | null, description = ''): any => ({
   id, title, project, description, status: status ? { id: status, name: 'x' } : null,
@@ -38,5 +38,17 @@ describe('statusCounts', () => {
   it('cuenta por estado y total', () => {
     expect(statusCounts(data)).toEqual({ all: 4, 1: 2, 2: 1, 3: 1 });
     expect(statusCounts([])).toEqual({ all: 0, 1: 0, 2: 0, 3: 0 });
+  });
+});
+
+describe('canDeleteSheet', () => {
+  it('pendiente y rechazada se pueden borrar; aprobada no (definitiva)', () => {
+    expect(canDeleteSheet({ status: { id: 1 } })).toBe(true);
+    expect(canDeleteSheet({ status: { id: 3 } })).toBe(true);
+    expect(canDeleteSheet({ status: { id: 2 } })).toBe(false);
+  });
+  it('sin estado cuenta como pendiente', () => {
+    expect(canDeleteSheet({})).toBe(true);
+    expect(canDeleteSheet({ status: null })).toBe(true);
   });
 });

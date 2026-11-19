@@ -121,4 +121,29 @@ describe('HomeScreen (dashboard)', () => {
     expect(r.root.findAll((n) => n.props.testID === 'kpi-total').length).toBeGreaterThan(0);
     expect(text(r.root)).toContain('1.250,50 €');
   });
+
+  it('REGRESION: plurales correctos con 1 hoja / 1 linea ("1 hojas" y "1 lineas" estaban mal)', async () => {
+    db.on('expense_sheet_with_total', 'select', { data: [sheets[0]] }); // una hoja aprobada
+    db.on('Expense_line', 'select', { data: [lines[0]] });
+    const r = await mount(<HomeScreen />);
+    const t = text(r.root).replace(/\s+/g, ' ');
+    expect(t).toContain('1 línea registrada');
+    expect(t).toContain('1 hoja');
+    expect(t).not.toContain('1 hojas');
+    expect(t).not.toContain('1 líneas');
+    expect(t).toContain('0 hojas'); // el cero va en plural
+  });
+
+  it('sin gasto en los ultimos 8 meses el grafico muestra un mensaje en lugar de ejes vacios', async () => {
+    db.on('Expense_line', 'select', { data: [{ id: 9, id_sheet: '1', amount: 50, date: '2020-01-01', id_category: '1', id_payment_type: '1' }] });
+    const r = await mount(<HomeScreen />);
+    expect(r.root.findAll((n) => n.props.testID === 'monthly-empty').length).toBeGreaterThan(0);
+    expect(text(r.root)).toContain('Sin gasto en los últimos 8 meses');
+  });
+
+  it('con gasto reciente se dibuja el grafico y no el mensaje', async () => {
+    const r = await mount(<HomeScreen />);
+    expect(r.root.findAll((n) => n.props.testID === 'monthly-empty')).toHaveLength(0);
+    expect(r.root.findAll((n) => n.props.testID === 'bar-chart').length).toBeGreaterThan(0);
+  });
 });

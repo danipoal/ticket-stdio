@@ -351,7 +351,7 @@ describe('SheetView', () => {
       expect(t).toContain('Marta Ruiz');
       expect(t).toContain('“Falta el ticket”');
       expect(r.root.findAll((n: ReactTestInstance) => n.props.testID === 'history-row' && typeof n.type === 'string')).toHaveLength(2);
-      expect(db.calls.find((c) => c.table === 'Sheet_status_history')?.order).toEqual(['changed_at', { ascending: true }]);
+      expect(db.calls.find((c) => c.table === 'Sheet_status_history')?.order).toEqual(['id', { ascending: true }]); // orden de registro, no por fecha
     });
 
     it('si el historial falla o viene vacio, la hoja se sigue mostrando sin la seccion', async () => {
@@ -367,6 +367,64 @@ describe('SheetView', () => {
       const before = db.calls.filter((c) => c.table === 'Sheet_status_history').length;
       await press(r.root, 'approve-sheet');
       expect(db.calls.filter((c) => c.table === 'Sheet_status_history').length).toBeGreaterThan(before);
+    });
+  });
+
+  describe('totales, adjuntos al borrar y refresco de la lista', () => {
+    const l1 = { id: 11, title: 'Una', amount: 10.1, tax: 21, date: '2026-03-02', id_category: '2', id_payment_type: '1' };
+    const l2 = { id: 12, title: 'Dos', amount: 20.2, tax: 21, date: '2026-03-02', id_category: '2', id_payment_type: '1', foto_path: 'expense-lines/7/f.png' };
+
+    beforeEach(() => {
+      mockConfirm.mockResolvedValue(true);
+      db.on('Expense_line', 'select', { data: [l1, l2] });
+    });
+
+    it('REGRESION: el Total de la cabecera suma las lineas cargadas (antes enseñaba el de la lista, desfasado)', async () => {
+      const r = await mount({}, { total_amount: '0' });
+      expect(text(r.root).replace(/\s+/g, ' ')).toContain('30,30 €');
+    });
+
+    it('mientras cargan las lineas (o si fallan) se muestra el total de la hoja', async () => {
+      db.on('Expense_line', 'select', { error: { message: 'x' } });
+      const r = await mount({}, { total_amount: '55' });
+      expect(text(r.root).replace(/\s+/g, ' ')).toContain('55,00 €');
+    });
+
+    it('borrar una linea con adjunto quita antes el archivo del bucket y avisa a la lista', async () => {
+      db.on('Expense_line', 'delete', { data: null });
+      const onLinesChange = jest.fn();
+      const r = await mount({ onLinesChange });
+      await press(r.root, 'delete-line-12');
+      expect(db.storageRemove).toHaveBeenCalledWith(['expense-lines/7/f.png']);
+      const ops = db.calls.map((c) => c.op);
+      expect(ops).toContain('delete');
+      expect(onLinesChange).toHaveBeenCalledTimes(1);
+    });
+
+    it('borrar una linea sin adjunto no llama a Storage', async () => {
+      db.on('Expense_line', 'delete', { data: null });
+      const r = await mount();
+      await press(r.root, 'delete-line-11');
+      expect(db.storageRemove).not.toHaveBeenCalled();
+    });
+
+    it('si falla el borrado de la fila no se avisa a la lista', async () => {
+      db.on('Expense_line', 'delete', { error: { message: 'x' } });
+      const onLinesChange = jest.fn();
+      const r = await mount({ onLinesChange });
+      await press(r.root, 'delete-line-11');
+      expect(onLinesChange).not.toHaveBeenCalled();
+      expect(text(r.root)).toContain('Error eliminando la línea');
+    });
+
+    it('anadir una linea avisa a la lista para refrescar los totales', async () => {
+      db.on('Expense_line', 'insert', { data: [{}] });
+      const onLinesChange = jest.fn();
+      const r = await mount({ onLinesChange });
+      await press(r.root, 'add-line');
+      await fillForm(r.root);
+      await press(r.root, 'save-line');
+      expect(onLinesChange).toHaveBeenCalledTimes(1);
     });
   });
 });

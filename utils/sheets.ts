@@ -1,4 +1,5 @@
 import { SheetRow } from './dashboard';
+import { SheetStatusID } from '@/constants/constants';
 
 export type StatusFilter = 'all' | number;
 
@@ -23,4 +24,12 @@ export function statusCounts(sheets: SheetRow[]): Record<'all' | 1 | 2 | 3, numb
     if (id in c) c[id]++;
   }
   return c;
+}
+
+/**
+ * Una hoja aprobada es definitiva: la base de datos no deja borrarla (el DELETE devuelve 0 filas sin error).
+ * Solo se ofrece borrar las pendientes y las rechazadas.
+ */
+export function canDeleteSheet(s: { status?: { id: number } | null }): boolean {
+  return (s.status?.id ?? SheetStatusID.PENDIENTE) !== SheetStatusID.APROBADO;
 }

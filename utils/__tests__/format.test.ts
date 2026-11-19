@@ -1,4 +1,4 @@
-import { formatAmount, formatDateSafe, formatDateTimeSafe, isValidIsoDate, parseDecimal, todayIso } from '../format';
+import { formatAmount, formatDateSafe, formatDateTimeSafe, isValidIsoDate, parseDecimal, plural, todayIso } from '../format';
 
 describe('parseDecimal', () => {
   it.each([
@@ -100,5 +100,15 @@ describe('formatDateTimeSafe', () => {
   });
   it('nulo, vacio o invalido -> "-"', () => {
     for (const v of [null, undefined, '', 'basura']) expect(formatDateTimeSafe(v as any)).toBe('-');
+  });
+});
+
+describe('plural', () => {
+  it.each([[0, '0 hojas'], [1, '1 hoja'], [2, '2 hojas'], [11, '11 hojas']])('%i -> %s', (n, out) => {
+    expect(plural(n, 'hoja', 'hojas')).toBe(out);
+  });
+  it('frases compuestas', () => {
+    expect(plural(1, 'línea registrada', 'líneas registradas')).toBe('1 línea registrada');
+    expect(plural(3, 'línea registrada', 'líneas registradas')).toBe('3 líneas registradas');
   });
 });

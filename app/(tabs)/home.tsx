@@ -10,7 +10,7 @@ import { Card, CardTitle, StatusBadge, PrimaryButton } from "@/components/custom
 import { BarChart, Donut, HBars } from "@/components/charts/charts"
 import { palette } from "@/constants/theme"
 import { useBreakpoint } from "@/hooks/useBreakpoint"
-import { formatAmount, formatDateSafe } from "@/utils/format"
+import { formatAmount, formatDateSafe, plural } from "@/utils/format"
 import {
   LineRow, SheetRow, monthDelta, monthlySpend, recentSheets, sheetTotal,
   spendByCategory, spendByProject, summarize, breakdown,
@@ -134,9 +134,9 @@ export default function HomeScreen() {
     <Page title={`Hola, ${firstName}`} subtitle={`Resumen de tus gastos · ${monthLabel}`}>
       <View style={s.row}>
         <Kpi id="total" title="Importe total" value={`${formatAmount(summary.totalAmount)} €`} sub={`Media ${formatAmount(summary.averageSheet)} € por hoja`} icon={Euro} tone="#4f46e5" />
-        <Kpi id="sheets" title="Hojas de gasto" value={String(summary.count)} sub={`${lines.length} líneas registradas`} icon={FileText} tone="#0891b2" />
-        <Kpi id="approved" title="Aprobado" value={`${formatAmount(summary.approvedAmount)} €`} sub={`${summary.approved} hojas`} icon={CheckCircle2} tone={palette.success} />
-        <Kpi id="pending" title="Pendiente de aprobar" value={`${formatAmount(summary.pendingAmount)} €`} sub={`${summary.pending} hojas`} icon={Hourglass} tone="#d97706" />
+        <Kpi id="sheets" title="Hojas de gasto" value={String(summary.count)} sub={plural(lines.length, "línea registrada", "líneas registradas")} icon={FileText} tone="#0891b2" />
+        <Kpi id="approved" title="Aprobado" value={`${formatAmount(summary.approvedAmount)} €`} sub={plural(summary.approved, "hoja", "hojas")} icon={CheckCircle2} tone={palette.success} />
+        <Kpi id="pending" title="Pendiente de aprobar" value={`${formatAmount(summary.pendingAmount)} €`} sub={plural(summary.pending, "hoja", "hojas")} icon={Hourglass} tone="#d97706" />
       </View>
 
       <View style={s.row}>
@@ -155,12 +155,16 @@ export default function HomeScreen() {
               ) : null
             }
           />
-          <BarChart data={months} />
+          {months.every((m) => m.value === 0) ? (
+            <Text style={s.state} testID="monthly-empty">Sin gasto en los últimos 8 meses</Text>
+          ) : (
+            <BarChart data={months} />
+          )}
         </Card>
         <Card style={{ flexGrow: 1, flexBasis: isDesktop ? "30%" : "100%" }} testID="card-status">
           <CardTitle title="Estado de las hojas" subtitle={`${summary.count} en total`} />
           <View style={s.donutRow}>
-            <Donut slices={statusSlices} center={{ top: String(summary.count), bottom: "hojas" }} />
+            <Donut slices={statusSlices} center={{ top: String(summary.count), bottom: summary.count === 1 ? "hoja" : "hojas" }} />
             <View style={{ flex: 1, marginLeft: 18 }}>
               {statusSlices.map((sl) => (
                 <View key={sl.id} style={s.legendRow}>

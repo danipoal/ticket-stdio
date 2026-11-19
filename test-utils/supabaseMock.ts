@@ -48,10 +48,12 @@ export function createSupabaseMock() {
   };
 
   const storageUpload = jest.fn(async () => ({ data: { path: 'x' }, error: null }));
+  const storageRemove = jest.fn(async (_paths: string[]): Promise<any> => ({ data: [], error: null }));
   const storageSignedUrl = jest.fn(async (p: string): Promise<any> => ({ data: { signedUrl: `https://signed.test/${p}?token=t` }, error: null }));
   const storage = {
     from: jest.fn(() => ({
       upload: storageUpload,
+      remove: storageRemove,
       createSignedUrl: storageSignedUrl,
       getPublicUrl: jest.fn((p: string) => ({ data: { publicUrl: `https://cdn.test/${p}` } })),
     })),
@@ -73,6 +75,7 @@ export function createSupabaseMock() {
     calls,
     auth,
     storageUpload,
+    storageRemove,
     storageSignedUrl,
     reset: () => {
       handlers.clear();
@@ -80,6 +83,7 @@ export function createSupabaseMock() {
       calls.length = 0;
       storageUpload.mockClear();
       storageSignedUrl.mockClear();
+      storageRemove.mockClear();
     },
   };
 }

@@ -71,7 +71,7 @@ describe('TicketsScreen', () => {
 
   it('confirmando, borra la hoja por id y recarga la lista', async () => {
     db.on('expense_sheet_with_total', 'select', { data: [sheetRow(1, 'Hoja uno')] });
-    db.on('Expense_sheet', 'delete', { data: null });
+    db.on('Expense_sheet', 'delete', { data: [{ id: 1 }] });
     const r = await mount(<TicketsScreen />);
     await press(r.root, 'sheet-delete');
     const del = db.calls.find((c) => c.op === 'delete');
@@ -158,6 +158,80 @@ describe('TicketsScreen', () => {
       expect(sheetsQuery().length).toBeGreaterThan(before);
       expect(text(r.root)).toContain('Pendiente de aprobación');
       expect(r.root.findAll((n) => n.props.testID === 'resubmit-sheet')).toHaveLength(0);
+    });
+  });
+
+  describe('correcciones de las pruebas reales en produccion', () => {
+    it('REGRESION: una hoja APROBADA no ofrece papelera (la base de datos no deja borrarla y no avisaba)', async () => {
+      db.on('expense_sheet_with_total', 'select', { data: [sheetRow(1, 'Pendiente uno', 1), sheetRow(2, 'Aprobada dos', 2), sheetRow(3, 'Rechazada tres', 3)] });
+      const r = await mount(<TicketsScreen />);
+      const trashes = r.root.findAll((n) => n.props.testID === 'sheet-delete' && typeof n.type === 'string'); // solo nodos reales
+      expect(trashes).toHaveLength(2); // pendiente y rechazada; la aprobada no
+    });
+
+    it('REGRESION: si el DELETE devuelve 0 filas (RLS) se avisa y la hoja sigue en la lista', async () => {
+      db.on('expense_sheet_with_total', 'select', { data: [sheetRow(1, 'Hoja uno', 1)] });
+      db.on('Expense_sheet', 'delete', { data: [] });
+      const r = await mount(<TicketsScreen />);
+      await press(r.root, 'sheet-delete');
+      expect(text(r.root)).toContain('No se puede eliminar esta hoja');
+      expect(text(r.root)).toContain('Hoja uno');
+    });
+
+    it('al borrar una hoja se eliminan antes sus adjuntos del bucket privado', async () => {
+      db.on('expense_sheet_with_total', 'select', { data: [sheetRow(1, 'Hoja uno', 1)] });
+      db.on('Expense_line', 'select', { data: [{ foto_path: 'expense-lines/1/a.png' }, { foto_path: null }, { foto_path: 'expense-lines/1/b.png' }] });
+      db.on('Expense_sheet', 'delete', { data: [{ id: 1 }] });
+      const r = await mount(<TicketsScreen />);
+      await press(r.root, 'sheet-delete');
+      expect(db.storageRemove).toHaveBeenCalledWith(['expense-lines/1/a.png', 'expense-lines/1/b.png']);
+      // antes de borrar la fila: despues la politica de storage ya no ve la hoja
+      const order = db.calls.map((c) => c.op);
+      expect(order.indexOf('delete')).toBeGreaterThan(order.indexOf('select', 1));
+    });
+
+    it('sin adjuntos no llama a Storage; y si Storage falla igualmente se borra la hoja', async () => {
+      db.on('expense_sheet_with_total', 'select', { data: [sheetRow(1, 'Hoja uno', 1)] });
+      db.on('Expense_line', 'select', { data: [{ foto_path: null }] });
+      db.on('Expense_sheet', 'delete', { data: [{ id: 1 }] });
+      let r = await mount(<TicketsScreen />);
+      await press(r.root, 'sheet-delete');
+      expect(db.storageRemove).not.toHaveBeenCalled();
+
+      db.reset();
+      mockConfirm.mockResolvedValue(true);
+      db.on('expense_sheet_with_total', 'select', { data: [sheetRow(1, 'Hoja uno', 1)] });
+      db.on('Expense_line', 'select', { data: [{ foto_path: 'x.png' }] });
+      db.on('Expense_sheet', 'delete', { data: [{ id: 1 }] });
+      db.storageRemove.mockRejectedValueOnce(new Error('boom'));
+      r = await mount(<TicketsScreen />);
+      await press(r.root, 'sheet-delete');
+      expect(db.calls.some((c) => c.op === 'delete')).toBe(true);
+    });
+
+    it('al crear una hoja se abre sola para poder anadir lineas', async () => {
+      let created = false;
+      db.on('expense_sheet_with_total', 'select', () => ({ data: created ? [sheetRow(9, 'Nueva hoja', 1)] : [] }));
+      db.on('Expense_sheet', 'insert', () => ((created = true), { data: { id: 9 } }));
+      const r = await mount(<TicketsScreen />);
+      await press(r.root, 'add-button');
+      await type(r.root, 'sheet-title', 'Nueva hoja');
+      await type(r.root, 'sheet-project', 'P');
+      await press(r.root, 'sheet-create');
+      // detalle abierto (referencia/estado de la hoja nueva) en lugar del formulario o del panel vacio
+      expect(text(r.root)).toContain('Líneas de gasto');
+      expect(r.root.findAll((n) => n.props.testID === 'add-line').length).toBeGreaterThan(0);
+    });
+
+    it('al anadir o borrar una linea la lista de hojas se vuelve a pedir (totales al dia)', async () => {
+      db.on('expense_sheet_with_total', 'select', { data: [sheetRow(1, 'Hoja uno', 1)] });
+      db.on('Expense_line', 'select', { data: [{ id: 5, title: 'L', amount: 5, tax: 21, date: '2026-03-01', id_category: '2', id_payment_type: '1' }] });
+      db.on('Expense_line', 'delete', { data: null });
+      const r = await mount(<TicketsScreen />);
+      await press(r.root, 'sheet-open');
+      const before = sheetsQuery().length;
+      await press(r.root, 'delete-line-5');
+      expect(sheetsQuery().length).toBeGreaterThan(before);
     });
   });
 });

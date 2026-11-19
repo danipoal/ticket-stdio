@@ -8,6 +8,7 @@ import { formatAmount, formatDateSafe } from "@/utils/format";
 type SheetCardProps = {
 	sheet: ExpenseSheet;
 	onPress?: () => void;
+	/** Si no se pasa, no se muestra la papelera (p. ej. hojas aprobadas). */
 	onDelete?: (sheet: ExpenseSheet) => void;
 };
 
@@ -55,6 +56,7 @@ export default function SheetCard({ sheet, onPress, onDelete }: SheetCardProps) 
 					</VStack>
 				</Pressable>
 
+				{onDelete ? (
 				<Pressable
 					testID="sheet-delete"
 					onPress={() => onDelete?.(sheet)}
@@ -64,6 +66,7 @@ export default function SheetCard({ sheet, onPress, onDelete }: SheetCardProps) 
 				>
 					<Icon as={Trash2} size="lg" color="$coolGray700" />
 				</Pressable>
+				) : null}
 			</HStack>
 		</Box>
 	);

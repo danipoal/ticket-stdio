@@ -69,3 +69,8 @@ export function formatDateTimeSafe(value: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return '-';
   return d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
+
+/** "1 hoja" / "3 hojas" (el 1 va en singular). `plural(1, 'línea registrada', 'líneas registradas')`. */
+export function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
