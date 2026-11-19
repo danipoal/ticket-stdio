@@ -141,6 +141,7 @@ const server = http.createServer((req, res) => {
       try { const id = JSON.parse(Buffer.from(tok, 'base64url').toString()).sub; const user = Object.values(users).find((x) => x.id === id); return send(200, session(user).user); } catch { return send(401, { msg: 'bad jwt' }); }
     }
     if (u.pathname === '/auth/v1/logout') return send(204);
+    if (u.pathname === '/auth/v1/recover') return send(200, {}); // no revela si el correo existe
     const sub = (() => { try { return JSON.parse(Buffer.from((req.headers.authorization || '').split('.')[1], 'base64url').toString()).sub; } catch { return null; } })();
     const rpc = /^\/rest\/v1\/rpc\/(\w+)$/.exec(u.pathname);
     if (rpc) {

@@ -185,6 +185,9 @@ const Login = () => {
       >
         <Text style={styles.buttonText}>{submitting ? "Entrando..." : "Entrar"}</Text>
       </TouchableOpacity>
+      <TouchableOpacity onPress={() => router.push("/auth/forgot")} testID="login-forgot" style={{ marginTop: 14 }}>
+        <Text style={{ textAlign: "center", color: "#4f46e5", fontWeight: "600" }}>¿Olvidaste tu contraseña?</Text>
+      </TouchableOpacity>
       <TouchableOpacity
         style={[styles.button, styles.buttonSecondary]}
         onPress={redirectSignIn}

@@ -1,0 +1,17 @@
+{
+  "_comentario": "Asuntos y plantillas de los correos de Supabase Auth. Se aplican con supabase/apply-email-config.py. La clave del SMTP NO va aqui.",
+  "site_url": "https://ticket.danipoal.com",
+  "uri_allow_list": "https://ticket.danipoal.com/**",
+  "smtp": { "host": "smtp.resend.com", "port": "465", "user": "resend", "admin_email": "ticket@danipoal.com", "sender_name": "Ticket Stdio", "max_frequency": 30 },
+  "rate_limit_email_sent": 30,
+  "mailer_otp_exp": 3600,
+  "subjects": {
+    "confirmation": "Confirma tu correo en Ticket Stdio",
+    "recovery": "Crea una nueva contraseña en Ticket Stdio",
+    "magic_link": "Tu enlace de acceso a Ticket Stdio",
+    "invite": "Te han invitado a Ticket Stdio",
+    "email_change": "Confirma tu nuevo correo en Ticket Stdio",
+    "reauthentication": "Tu código de verificación de Ticket Stdio",
+    "password_changed_notification": "Tu contraseña de Ticket Stdio ha cambiado"
+  }
+}

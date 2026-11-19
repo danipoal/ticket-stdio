@@ -144,6 +144,65 @@ const bad = (errors) => errors.filter((e) => !/favicon|Failed to load resource/i
     await ctx.close();
   }
 
+  // ---- Recuperar contraseña ----
+  {
+    const ctx = await browser.createBrowserContext();
+    const page = await ctx.newPage();
+    await page.setViewport({ width: 1440, height: 900 });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.goto(BASE + '/auth/login', { waitUntil: 'load', timeout: 60000 });
+    await page.waitForSelector('[data-testid="login-forgot"]');
+    await page.click('[data-testid="login-forgot"]');
+    await page.waitForSelector('[data-testid="forgot-email"]', { timeout: 10000 });
+    check('el login enlaza a "¿Olvidaste tu contraseña?"', page.url().includes('/auth/forgot'), page.url());
+    await page.type('[data-testid="forgot-email"]', 'ana@demo.test');
+    await page.click('[data-testid="forgot-submit"]');
+    await page.waitForFunction(() => document.body.innerText.includes('Si existe una cuenta con ese correo'), { timeout: 10000 }).catch(() => {});
+    check('recuperar: mensaje generico tras enviar', (await textOf(page)).includes('Si existe una cuenta con ese correo'));
+
+    // enlace caducado
+    await page.goto(BASE + '/auth/reset#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired', { waitUntil: 'load' });
+    await page.waitForFunction(() => document.body.innerText.includes('caducado'), { timeout: 10000 }).catch(() => {});
+    check('enlace caducado: aviso y opcion de pedir otro', (await textOf(page)).includes('caducado') && (await has(page, 'reset-request-new')));
+
+    // enlace valido: los tokens llegan en el fragmento, como hace Supabase
+    const MOCK = process.env.MOCK_URL || 'http://127.0.0.1:54399';
+    const tok = await (await fetch(MOCK + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'ana@demo.test', password: 'x' }) })).json();
+    await page.goto(BASE + '/auth/reset#access_token=' + tok.access_token + '&refresh_token=' + tok.refresh_token + '&type=recovery', { waitUntil: 'load' });
+    await page.waitForSelector('[data-testid="reset-password"]', { timeout: 15000 }).catch(() => {});
+    check('enlace valido: formulario de nueva contraseña (no se redirige a la home)', (await has(page, 'reset-password')) && page.url().includes('/auth/reset'), page.url());
+    check('los tokens desaparecen de la barra de direcciones', !page.url().includes('access_token'), page.url());
+    await page.type('[data-testid="reset-password"]', 'clave-nueva-1');
+    await page.type('[data-testid="reset-confirm"]', 'otra-distinta');
+    await page.click('[data-testid="reset-submit"]');
+    await page.waitForFunction(() => document.body.innerText.includes('no coinciden'), { timeout: 10000 }).catch(() => {});
+    check('contraseñas distintas: aviso', (await textOf(page)).includes('no coinciden'));
+    await page.focus('[data-testid="reset-confirm"]');
+    await page.keyboard.down('Control');
+    await page.keyboard.press('KeyA');
+    await page.keyboard.up('Control');
+    await page.keyboard.press('Backspace');
+    await page.type('[data-testid="reset-confirm"]', 'clave-nueva-1');
+    await page.click('[data-testid="reset-submit"]');
+    await page.waitForFunction(() => document.body.innerText.includes('Contraseña actualizada'), { timeout: 10000 }).catch(() => {});
+    check('guardada: "Contraseña actualizada"', (await textOf(page)).includes('Contraseña actualizada'));
+    await page.click('[data-testid="reset-continue"]');
+    await page.waitForFunction(() => location.pathname.endsWith('/home'), { timeout: 15000 }).catch(() => {});
+    check('"Continuar" lleva a la home con la sesion abierta', page.url().endsWith('/home') && (await has(page, 'sidebar')), page.url());
+
+    // correo confirmado
+    const ctx2 = await browser.createBrowserContext();
+    const p2 = await ctx2.newPage();
+    await p2.goto(BASE + '/auth/confirmed', { waitUntil: 'load' });
+    await p2.waitForFunction(() => document.body.innerText.includes('Correo confirmado'), { timeout: 10000 }).catch(() => {});
+    check('/auth/confirmed: "Correo confirmado" y acceso al login', (await textOf(p2)).includes('Correo confirmado') && (await has(p2, 'confirmed-login')));
+    await ctx2.close();
+    check('sin errores de JS (recuperacion)', bad(errors).length === 0, bad(errors).slice(0, 2).join(' || '));
+    await ctx.close();
+  }
+
   // ---- Movil ----
   {
     const { page, ctx, errors } = await session(browser, { email: 'ana@demo.test', width: 390, height: 800 });

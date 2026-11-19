@@ -39,3 +39,15 @@ Proyecto `Stdio Ticket` (`zyiegqaaeltcgazcvbfs`). Los cambios de esquema y segur
 - `Expense_account` queda obsoleta: usar `Expense_category.account_code`.
 
 Pendiente: verificacion de correo (SMTP propio), proteccion contra contrasenas filtradas y un conector real que consuma `erp_outbox`.
+
+## Correo (Supabase Auth)
+
+- Remitente `ticket@danipoal.com` ("Ticket Stdio"). Supabase envia por **Resend** (`smtp.resend.com:465`, usuario `resend`)
+  con una clave de API propia y revocable; las respuestas llegan al buzon `ticket@danipoal.com` del Poste.io del servidor.
+  (Los puertos SMTP de Poste no son accesibles desde la nube porque `mail.`/`email.danipoal.com` estan tras el proxy de Cloudflare.)
+- `supabase/email-config.json` (asuntos, URLs permitidas, limites) y `supabase/email-templates/*.html` (plantillas en castellano)
+  se aplican con `python3 supabase/apply-email-config.py [--dry-run] [--require-confirmation]`. La clave de Resend se lee de
+  `~/.config/resend-ticket-key` (o `RESEND_API_KEY`); no esta en el repositorio.
+- Flujos de la app: registro con confirmacion de correo (`/auth/confirmed`), "¿Olvidaste tu contrasena?" (`/auth/forgot`) y
+  nueva contrasena desde el enlace (`/auth/reset`). Los tokens del enlace llegan en el fragmento de la URL
+  (`#access_token=...`); expo-router incluye ese fragmento en `usePathname()`, por eso el guardia de rutas compara solo la ruta.
