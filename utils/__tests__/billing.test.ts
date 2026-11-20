@@ -81,7 +81,7 @@ describe('planLabel', () => {
     expect(planLabel(st({ used: 50, remaining: 0, can_create: false }))).toMatchObject({ label: 'Plan gratuito agotado', tone: 'danger' });
     expect(planLabel(st({ paid: true, status: 'active' }))).toMatchObject({ label: 'Suscripción activa', tone: 'success' });
     expect(planLabel(st({ paid: true, status: 'past_due' }))).toMatchObject({ label: 'Pago pendiente', tone: 'warning' });
-    expect(planLabel(st({ paid: true, status: 'active', cancel_at_period_end: true, current_period_end: '2027-01-15T00:00:00Z' })).detail).toContain('15/1/2027');
+    expect(planLabel(st({ paid: true, status: 'active', cancel_at_period_end: true, current_period_end: '2027-01-15T12:00:00Z' })).detail).toContain('15/1/2027');
     expect(planLabel(st({ status: 'canceled' }))).toMatchObject({ label: 'Suscripción cancelada', tone: 'danger' });
   });
 });

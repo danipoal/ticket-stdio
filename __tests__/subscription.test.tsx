@@ -107,7 +107,7 @@ describe('SubscriptionScreen', () => {
   });
 
   it('suscripcion activa: sin limite, boton de gestionar pago/facturas y nada de Activar', async () => {
-    db.onRpc('billing_status', { data: status({ paid: true, status: 'active', billed_seats: 6, used: 300, current_period_end: '2027-01-15T00:00:00Z' }) });
+    db.onRpc('billing_status', { data: status({ paid: true, status: 'active', billed_seats: 6, used: 300, current_period_end: '2027-01-15T12:00:00Z' }) });
     db.onFunction('billing', { data: { url: 'https://billing.stripe.test/p/1' } });
     const r = await mount(<SubscriptionScreen />);
     const t = text(r.root);
@@ -139,7 +139,7 @@ describe('SubscriptionScreen', () => {
   });
 
   it('cancelacion programada: indica hasta cuando sigue activa', async () => {
-    db.onRpc('billing_status', { data: status({ paid: true, status: 'active', billed_seats: 6, cancel_at_period_end: true, current_period_end: '2027-02-01T00:00:00Z' }) });
+    db.onRpc('billing_status', { data: status({ paid: true, status: 'active', billed_seats: 6, cancel_at_period_end: true, current_period_end: '2027-02-01T12:00:00Z' }) });
     const r = await mount(<SubscriptionScreen />);
     expect(text(r.root)).toContain('Se cancela al final del periodo');
     expect(text(r.root)).toContain('1/2/2027');

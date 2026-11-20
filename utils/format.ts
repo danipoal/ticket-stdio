@@ -44,7 +44,8 @@ export function isValidIsoDate(value: string | null | undefined): boolean {
 export function formatDateSafe(value: string | null | undefined): string {
   if (!value) return '-';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString();
+  // Siempre en castellano (dia/mes/año): sin locale explicito dependia del idioma del navegador o de la maquina (en CI salia 1/15/2027)
+  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('es-ES');
 }
 
 /** Importe con 2 decimales y coma/punto segun el locale. null/NaN -> 0,00. */
