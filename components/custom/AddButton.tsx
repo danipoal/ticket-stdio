@@ -9,6 +9,8 @@ type AddButtonProps = {
 	iconColor?: string; // color del icono
 	testID?: string;
 	accessibilityLabel?: string;
+	/** Sin cupo de tickets: el boton se ve apagado y no responde. */
+	disabled?: boolean;
 };
 
 export default function AddButton({
@@ -18,10 +20,14 @@ export default function AddButton({
 	iconColor = "$white",
 	testID = "add-button",
 	accessibilityLabel = "Añadir",
+	disabled = false,
 }: AddButtonProps) {
 	return (
 		<Pressable
-			onPress={onPress}
+			onPress={disabled ? undefined : onPress}
+			disabled={disabled}
+			opacity={disabled ? 0.4 : 1}
+			accessibilityState={{ disabled }}
 			testID={testID}
 			accessibilityRole="button"
 			accessibilityLabel={accessibilityLabel}

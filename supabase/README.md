@@ -40,6 +40,39 @@ Proyecto `Stdio Ticket` (`zyiegqaaeltcgazcvbfs`). Los cambios de esquema y segur
 
 Pendiente: verificacion de correo (SMTP propio), proteccion contra contrasenas filtradas y un conector real que consuma `erp_outbox`.
 
+## Suscripcion y limite de tickets (fase 4)
+
+- **Regla**: cada empresa tiene **50 tickets (hojas de gasto) gratis**. Con suscripcion no hay limite. El contador
+  `organization_billing.tickets_created` solo sube: **borrar una hoja no devuelve el cupo** (los borrados cuentan).
+  Pasado el limite sin suscripcion, `insert` en `Expense_sheet` falla con SQLSTATE `PT402` (HTTP 402, `ticket_limit_reached`) y la
+  app bloquea "Nueva hoja" con un aviso para toda la empresa (consultar lo existente sigue funcionando).
+- **Precio**: 2 EUR/mes por trabajador (empleado de la empresa); la cantidad de la suscripcion es el numero de empleados.
+  Solo la administracion de la empresa contrata y gestiona (pestaña **Suscripcion**).
+- **Quien cuenta como de pago**: `active`, `trialing` y `past_due` (gracia mientras Stripe reintenta el cobro). `canceled`, `unpaid`,
+  `incomplete*`, `paused` y `none` vuelven al limite gratuito.
+- **Tabla** `organization_billing` (sin acceso desde la web, ni para administradores): contador, `free_limit` (por defecto 50, se puede
+  subir a mano para una empresa concreta), ids de Stripe, estado, plazas, fin de periodo. La web lee el estado con la RPC `billing_status()`
+  (todos los miembros: uso, limite, `can_create`; la administracion ademas ve plazas y cuota).
+- **Trigger** `expense_sheet_quota` (BEFORE INSERT en `Expense_sheet`, `SECURITY DEFINER`, fila bloqueada con `FOR UPDATE`): cuenta y
+  rechaza. SQL directo / `service_role` pueden crear hojas pero tambien consumen cupo.
+- **Edge Functions** (`supabase/functions/`, la logica comun en `_shared/stripe.ts`, probada con Jest y con Deno):
+  - `billing` (JWT obligatorio, solo administracion): `checkout` (Stripe Checkout, precio en linea 2 EUR x trabajadores), `portal`
+    (portal de cliente: tarjeta, facturas y baja al final del periodo), `sync` (ajusta la cantidad a la plantilla) y `confirm`
+    (al volver de Checkout, sin esperar al webhook).
+  - `stripe-webhook` (sin JWT: se verifica la firma `Stripe-Signature`, tolerancia 5 min): mantiene `organization_billing` al dia con
+    `checkout.session.completed`, `customer.subscription.*` e `invoice.upcoming` (ajusta las plazas antes de renovar). Es idempotente y
+    descarta eventos desordenados.
+  - Secretos (en Supabase, nunca en el repo): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PORTAL_CONFIGURATION`, `SITE_URL`.
+    Sin clave de Stripe las funciones responden `not_configured` y la pestaña lo explica.
+- **Despliegue**: `python3 supabase/apply-billing.py --dry-run` (construye y valida con Deno en Docker; tambien lo ejecuta el CI),
+  `--functions-only` (solo funciones) y sin opciones (funciones + webhook + portal + secretos si existe `~/.config/stripe-key`).
+  Para pasar de modo prueba a real: poner la clave `sk_live_...` en `~/.config/stripe-key` y repetir (crea webhook y portal en la cuenta real).
+- **Como probar una migracion**: concatenar el SQL de la migracion con `supabase/tests/fase4_suscripcion.sql` y enviarlo en una sola
+  peticion (`sbq.py --write -f`): las pruebas suplantan usuarios reales y terminan en una excepcion que deshace todo
+  (`DRYRUN_OK: N comprobaciones superadas`).
+- **Supuestos a revisar**: el limite cuenta HOJAS (no lineas); el precio es 2 EUR sin tratamiento de IVA en Stripe (no hay Stripe Tax
+  configurado: si procede cobrar IVA, activarlo en Stripe y revisar la factura); no hay prueba gratuita ademas de los 50 tickets.
+
 ## Correo (Supabase Auth)
 
 - Remitente `ticket@danipoal.com` ("Ticket Stdio"). Supabase envia por **Resend** (`smtp.resend.com:465`, usuario `resend`)

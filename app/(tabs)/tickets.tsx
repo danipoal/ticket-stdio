@@ -16,6 +16,9 @@ import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { canDeleteSheet, filterSheets, statusCounts, StatusFilter } from "@/utils/sheets";
 import { ExpenseSheet, ExpenseSheetPlain } from "@/constants/types";
 import { confirmAction } from "@/utils/confirm";
+import useBilling from "@/hooks/useBilling";
+import QuotaBanner from "@/components/custom/QuotaBanner";
+import { isLimitError, limitLevel, limitMessage } from "@/utils/billing";
 
 export default function TicketsScreen() {
   const { employee } = useAuth();
@@ -26,6 +29,9 @@ export default function TicketsScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<ExpenseSheet | null>(null);
   const { isDesktop, listWidth, detailWide } = useBreakpoint();
+  // Cupo de tickets gratuitos de la empresa (sin estado = migracion de suscripciones sin aplicar: sin limite)
+  const { status: billing, refresh: refreshBilling } = useBilling();
+  const quotaBlocked = limitLevel(billing) === "blocked";
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -115,8 +121,14 @@ export default function TicketsScreen() {
       .single();
 
     if (error) {
+      if (isLimitError(error)) {
+        // Otro compañero pudo gastar el ultimo cupo mientras se rellenaba el formulario
+        const fresh = await refreshBilling();
+        return fresh ? limitMessage(fresh, !!employee?.is_admin) : "La empresa ha agotado sus tickets gratuitos. Avisa a la administración para que active la suscripción.";
+      }
       return "No se pudo crear la hoja. Inténtalo de nuevo";
     }
+    refreshBilling();
     setCreateSheetView(false);
     // Abrir la hoja recien creada para poder añadir lineas directamente
     const list = await fetchExpenseSheets();
@@ -185,11 +197,13 @@ export default function TicketsScreen() {
           <PrimaryButton
             testID="add-button"
             label="Nueva hoja"
+            disabled={quotaBlocked}
             icon={<Plus size={16} color="#fff" style={{ marginRight: 6 }} />}
             onPress={() => { setSelectedSheet(null); setCreateSheetView(true); }}
           />
         }
       >
+        <QuotaBanner status={billing} isAdmin={!!employee?.is_admin} />
         {toolbar}
         {actionError && <RNText style={s.error} testID="tickets-action-error">{actionError}</RNText>}
         <View style={s.panes}>
@@ -226,11 +240,12 @@ export default function TicketsScreen() {
           <Heading flex={1} size="xl" textAlign="center">
             Mis Tickets
           </Heading>
-          <AddButton onPress={() => { setSelectedSheet(null); setCreateSheetView(true); }} />
+          <AddButton disabled={quotaBlocked} onPress={() => { setSelectedSheet(null); setCreateSheetView(true); }} />
 
           {/* Placeholder para mantener el título centrado */}
           {/* <Box w={40} h={40} /> */}
         </HStack>
+        {!createSheetView && <QuotaBanner status={billing} isAdmin={!!employee?.is_admin} />}
         {createSheetView && (
           <CreateSheetView
             onClose={() => setCreateSheetView(false)}

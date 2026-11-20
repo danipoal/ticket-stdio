@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router"
-import { Home, Ticket, Settings, User, ClipboardCheck } from "lucide-react-native"
+import { Home, Ticket, Settings, User, ClipboardCheck, CreditCard } from "lucide-react-native"
 import Sidebar from "@/components/custom/Sidebar"
 import { useBreakpoint } from "@/hooks/useBreakpoint"
 import useAuth from "@/context/useAuth"
@@ -52,6 +52,15 @@ export default function TabLayout() {
           // Solo los administradores tienen contenido aqui: al resto se les oculta la pestaña
           href: employee?.is_admin ? undefined : null,
           tabBarIcon: ({ color }) => <Settings size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="subscription"
+        options={{
+          title: "Suscripción",
+          // Pagar y gestionar la suscripcion es cosa de la administracion de la empresa
+          href: employee?.is_admin ? undefined : null,
+          tabBarIcon: ({ color }) => <CreditCard size={24} color={color} />,
         }}
       />
       <Tabs.Screen

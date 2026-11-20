@@ -17,6 +17,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test -- --ci
+      - name: Funciones de Supabase (tipos y sintaxis con Deno)
+        run: python3 supabase/apply-billing.py --dry-run
       - name: Export web (smoke build)
         run: npx expo export --platform web --output-dir dist
         env:
