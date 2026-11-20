@@ -94,7 +94,7 @@ export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewPr
           <RNView>
             <RNText style={styles.label}>Proyecto</RNText>
             <Input {...inputProps} h={44}>
-              <InputField testID="sheet-project" value={project} onChangeText={(v) => { setProject(v); clearError("project"); }} placeholder="Nombre del proyecto" />
+              <InputField testID="sheet-project" value={project} onChangeText={(v) => { setProject(v); clearError("project"); }} placeholder="Nombre del proyecto" onSubmitEditing={handleCreate} returnKeyType="done" />
             </Input>
             {errors.project ? <RNText style={styles.error}>{errors.project}</RNText> : null}
           </RNView>

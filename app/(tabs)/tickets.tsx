@@ -153,8 +153,11 @@ export default function TicketsScreen() {
 
   const noMatches = !loading && !error && sheets.length > 0 && visible.length === 0;
 
+  // El formulario de nueva hoja va en un scroll propio: en ventanas bajas el boton Crear quedaba fuera de pantalla
   const detailPane = createSheetView ? (
-    <CreateSheetView onClose={() => setCreateSheetView(false)} onCreate={onCreateSheet} />
+    <ScrollView flex={1} contentContainerStyle={{ paddingBottom: 24 }} keyboardShouldPersistTaps="handled" testID="create-sheet-scroll">
+      <CreateSheetView onClose={() => setCreateSheetView(false)} onCreate={onCreateSheet} />
+    </ScrollView>
   ) : selectedSheet ? (
     <SheetView
       sheet={selectedSheet}
