@@ -409,7 +409,8 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
         {/* Toda la hoja se desplaza junta: cabecera, avisos, formulario, líneas e historial */}
         <ScrollView flex={1} w="$full" contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator>
         {/* Cabecera */}
-        <RNView testID={wide ? "sheet-header-wide" : "sheet-header"} style={{ paddingRight: 40 }}>
+        <RNView testID={wide ? "sheet-header-wide" : "sheet-header"}>
+          <RNView style={{ paddingRight: 40 }}>
           {sheet.reference ? (
             <RNText testID="sheet-reference" style={styles.reference}>{sheet.reference}</RNText>
           ) : null}
@@ -418,6 +419,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
             <StatusBadge statusId={statusId} label={sheet.status?.id === statusId ? sheet.status?.name : undefined} />
           </RNView>
           {sheet.description ? <RNText style={styles.description}>{sheet.description}</RNText> : null}
+          </RNView>
           <RNView style={styles.stats}>
             <StatTile icon={<Folder size={15} color={palette.textMuted} />} label="Proyecto" value={sheet.project || "-"} />
             <StatTile icon={<CalendarDays size={15} color={palette.textMuted} />} label="Creada" value={formatDate(sheet.create_date)} />

@@ -25,7 +25,7 @@ export default function TicketsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<ExpenseSheet | null>(null);
-  const { isDesktop } = useBreakpoint();
+  const { isDesktop, listWidth, detailWide } = useBreakpoint();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -158,7 +158,7 @@ export default function TicketsScreen() {
   ) : selectedSheet ? (
     <SheetView
       sheet={selectedSheet}
-      wide={isDesktop}
+      wide={isDesktop && detailWide}
       onClose={() => setSelectedSheet(null)}
       onStatusChange={() => fetchExpenseSheets()}
       onLinesChange={() => fetchExpenseSheets()}
@@ -190,7 +190,7 @@ export default function TicketsScreen() {
         {toolbar}
         {actionError && <RNText style={s.error} testID="tickets-action-error">{actionError}</RNText>}
         <View style={s.panes}>
-          <View style={s.listPane}>
+          <View style={[s.listPane, { width: listWidth }]}>
             {loading && <RNText style={s.state}>Cargando tickets...</RNText>}
             {!loading && error && <RNText style={[s.state, { color: palette.danger }]}>{error}</RNText>}
             {!loading && !error && sheets.length === 0 && <RNText style={s.state}>No tienes tickets todavía</RNText>}
