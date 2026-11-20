@@ -68,6 +68,16 @@ describe('CreateSheetView', () => {
     expect(title.props.value).toBe('Viaje');
   });
 
+  it('Enter en el campo Proyecto envia el formulario (sin tener que llegar al boton Crear)', async () => {
+    const onCreate = jest.fn().mockResolvedValue(null);
+    const r = await mount(<CreateSheetView onCreate={onCreate} />);
+    await fill(r);
+    const field = r.root.findAll((n: any) => n.props.testID === 'sheet-project' && typeof n.props.onSubmitEditing === 'function')[0];
+    await require('react-test-renderer').act(async () => { await field.props.onSubmitEditing(); });
+    expect(onCreate).toHaveBeenCalledTimes(1);
+    expect(onCreate.mock.calls[0][0]).toMatchObject({ title: 'Viaje', project: 'Alfa' });
+  });
+
   it('titulo con solo espacios cuenta como vacio', async () => {
     const onCreate = jest.fn();
     const r = await mount(<CreateSheetView onCreate={onCreate} />);

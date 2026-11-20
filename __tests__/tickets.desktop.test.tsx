@@ -100,6 +100,15 @@ describe('TicketsScreen en escritorio (maestro-detalle)', () => {
     expect(r.root.findAll((n) => n.props.testID === 'sheet-header-wide')).toHaveLength(0);
   });
 
+  it('REGRESION: el formulario de nueva hoja va en un scroll propio (en ventanas bajas el boton Crear quedaba inalcanzable)', async () => {
+    const r = await mount(<TicketsScreen />);
+    await press(r.root, 'add-button');
+    const scroll = r.root.findAll((n) => n.props.testID === 'create-sheet-scroll');
+    expect(scroll.length).toBeGreaterThan(0);
+    const crear = scroll[0].findAll((n) => n.props.testID === 'sheet-create');
+    expect(crear.length).toBeGreaterThan(0);
+  });
+
   it('borrar desde la lista pide confirmacion y usa el id correcto', async () => {
     db.on('Expense_sheet', 'delete', { data: [{ id: 1 }] });
     const r = await mount(<TicketsScreen />);
