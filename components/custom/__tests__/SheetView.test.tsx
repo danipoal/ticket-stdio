@@ -458,16 +458,16 @@ describe('SheetView', () => {
         { id: 2, title: 'B', amount: 4.25, tax: 10, date: '2025-03-03' },
       ] });
       const r = await mount();
-      const total = r.root.findAll((n) => n.props.testID === 'lines-total')[0];
+      const total = r.root.findAll((n: any) => n.props.testID === 'lines-total')[0];
       expect(total).toBeDefined();
       expect(text(r.root)).toContain('14,75 €');
-      expect(r.root.findAll((n) => n.props.testID === 'sheet-total').length).toBeGreaterThan(0);
+      expect(r.root.findAll((n: any) => n.props.testID === 'sheet-total').length).toBeGreaterThan(0);
     });
 
     it('hoja aprobada: aviso de que ya no se puede modificar y sin boton de añadir', async () => {
       const r = await mount({}, { status: { id: 2, name: 'Aprobado' } });
       expect(text(r.root)).toContain('Hoja aprobada');
-      expect(r.root.findAll((n) => n.props.testID === 'add-line')).toHaveLength(0);
+      expect(r.root.findAll((n: any) => n.props.testID === 'add-line')).toHaveLength(0);
     });
 
     it('el error de un campo desaparece al corregirlo', async () => {
@@ -485,7 +485,7 @@ describe('SheetView', () => {
       db.on('Expense_line', 'delete', { error: { message: 'x' } });
       const r = await mount();
       await press(r.root, 'delete-line-11');
-      const aviso = r.root.findAll((n) => typeof n.type === 'string' && n.props.testID === 'action-error')[0];
+      const aviso = r.root.findAll((n: any) => typeof n.type === 'string' && n.props.testID === 'action-error')[0];
       expect(aviso.props.accessibilityRole).toBe('alert');
     });
   });
