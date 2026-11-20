@@ -208,6 +208,19 @@ describe('SheetView', () => {
       expect(inserts[1].payload.foto).toBeUndefined();
     });
 
+    it('la foto elegida se muestra con su nombre y se puede quitar antes de guardar', async () => {
+      const r = await mount();
+      await press(r.root, 'add-line');
+      await fillForm(r.root);
+      await attach(r, { name: 'ticket-cena.jpg', type: 'image/jpeg', size: 1000 });
+      expect(text(r.root)).toContain('ticket-cena.jpg');
+      await press(r.root, 'remove-photo');
+      expect(text(r.root)).not.toContain('ticket-cena.jpg');
+      expect(text(r.root)).toContain('Adjuntar imagen');
+      await press(r.root, 'save-line');
+      expect(db.storageUpload).not.toHaveBeenCalled();
+    });
+
     it('rechaza ficheros que no son imagen o pesan mas de 10 MB', async () => {
       const r = await mount();
       await press(r.root, 'add-line');
@@ -425,6 +438,55 @@ describe('SheetView', () => {
       await fillForm(r.root);
       await press(r.root, 'save-line');
       expect(onLinesChange).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('presentacion', () => {
+    it('sin lineas: estado vacio con pista para añadir la primera (solo si se puede editar)', async () => {
+      db.on('Expense_line', 'select', { data: [] });
+      const r = await mount();
+      expect(text(r.root)).toContain('No hay líneas todavía');
+      expect(text(r.root)).toContain('Añadir línea');
+      const aprobada = await mount({}, { status: { id: 2, name: 'Aprobado' } });
+      expect(text(aprobada.root)).toContain('No hay líneas todavía');
+      expect(text(aprobada.root)).not.toContain('Pulsa «Añadir línea»');
+    });
+
+    it('con lineas: pie con el total y contador de lineas en la cabecera', async () => {
+      db.on('Expense_line', 'select', { data: [
+        { id: 1, title: 'A', amount: 10.5, tax: 21, date: '2025-03-02' },
+        { id: 2, title: 'B', amount: 4.25, tax: 10, date: '2025-03-03' },
+      ] });
+      const r = await mount();
+      const total = r.root.findAll((n: any) => n.props.testID === 'lines-total')[0];
+      expect(total).toBeDefined();
+      expect(text(r.root)).toContain('14,75 €');
+      expect(r.root.findAll((n: any) => n.props.testID === 'sheet-total').length).toBeGreaterThan(0);
+    });
+
+    it('hoja aprobada: aviso de que ya no se puede modificar y sin boton de añadir', async () => {
+      const r = await mount({}, { status: { id: 2, name: 'Aprobado' } });
+      expect(text(r.root)).toContain('Hoja aprobada');
+      expect(r.root.findAll((n: any) => n.props.testID === 'add-line')).toHaveLength(0);
+    });
+
+    it('el error de un campo desaparece al corregirlo', async () => {
+      const r = await mount();
+      await press(r.root, 'add-line');
+      await press(r.root, 'save-line');
+      expect(text(r.root)).toContain('El título es obligatorio');
+      await type(r.root, 'line-title', 'Taxi');
+      expect(text(r.root)).not.toContain('El título es obligatorio');
+    });
+
+    it('el aviso de error de una accion se muestra como aviso (rol alert)', async () => {
+      db.on('Expense_line', 'select', { data: [{ id: 11, title: 'X', amount: 5, tax: 21, date: '2025-03-02' }] });
+      mockConfirm.mockResolvedValueOnce(true);
+      db.on('Expense_line', 'delete', { error: { message: 'x' } });
+      const r = await mount();
+      await press(r.root, 'delete-line-11');
+      const aviso = r.root.findAll((n: any) => typeof n.type === 'string' && n.props.testID === 'action-error')[0];
+      expect(aviso.props.accessibilityRole).toBe('alert');
     });
   });
 });

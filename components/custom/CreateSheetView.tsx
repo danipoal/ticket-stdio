@@ -1,33 +1,22 @@
 import React, { useState } from "react";
-import {
-  Box,
-  VStack,
-  HStack,
-  Heading,
-  FormControl,
-  FormControlLabel,
-  FormControlLabelText,
-  Input,
-  InputField,
-  Textarea,
-  TextareaInput,
-  Button,
-  ButtonText,
-  Pressable,
-  Text,
-  Icon,
-} from "@gluestack-ui/themed";
-import { X } from "lucide-react-native";
+import { Button, ButtonText, Input, InputField, Textarea, TextareaInput } from "@gluestack-ui/themed";
+import { StyleSheet, Text as RNText, View as RNView } from "react-native";
+import { FilePlus2, X } from "lucide-react-native";
 import { ExpenseSheetPlain } from "@/constants/types";
 import { SheetStatusID } from "@/constants/constants";
 import { validateSheet } from "@/utils/validation";
 import useAuth from "@/context/useAuth";
+import { Banner, IconButton } from "@/components/custom/ui";
+import { palette } from "@/constants/theme";
 
 type CreateSheetViewProps = {
   onClose?: () => void;
   /** Devuelve un mensaje de error si no se pudo crear (el formulario queda abierto) o null si fue bien. */
   onCreate?: (values: ExpenseSheetPlain) => Promise<string | null> | string | null | void;
 };
+
+// Estilo comun de los campos (esquinas redondeadas, borde que se tiñe de indigo al enfocar)
+const inputProps: any = { borderRadius: "$lg", bg: "$white", borderColor: "$coolGray300", "$focus-borderColor": "$indigo600" };
 
 export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewProps) {
   const [title, setTitle] = useState("");
@@ -69,76 +58,76 @@ export default function CreateSheetView({ onClose, onCreate }: CreateSheetViewPr
   };
 
   return (
-    <Box w="$full" alignItems="center" justifyContent="center">
-      <Box
-        position="relative"
-        w="$full"
-        maxWidth={640}
-        bg="$white"
-        borderWidth={1}
-        borderColor="$coolGray200"
-        borderRadius="$lg"
-        p={12}
-      >
-        <Pressable
-          onPress={() => onClose?.()}
-          accessibilityLabel="Cerrar"
-          accessibilityRole="button"
-          position="absolute"
-          right="$3"
-          top="$3"
-          zIndex={1}
-          hitSlop={10}
-        >
-          <Icon as={X} size="lg" color="$coolGray700" />
-        </Pressable>
+    <RNView style={styles.wrap}>
+      <RNView style={styles.panel}>
+        <RNView style={styles.strip} />
+        <RNView style={styles.closeBtn}>
+          <IconButton onPress={() => onClose?.()} label="Cerrar">
+            <X size={20} color={palette.text} />
+          </IconButton>
+        </RNView>
 
-        <VStack space="lg">
-          <Heading size="lg" textAlign="center">
-            Nueva hoja de gastos
-          </Heading>
+        <RNView style={styles.head}>
+          <RNView style={styles.headIcon}><FilePlus2 size={20} color={palette.primary} /></RNView>
+          <RNView style={{ flex: 1, paddingRight: 36 }}>
+            <RNText style={styles.title}>Nueva hoja de gastos</RNText>
+            <RNText style={styles.sub}>Después podrás añadir las líneas de gasto y adjuntar los tickets.</RNText>
+          </RNView>
+        </RNView>
 
-          <FormControl>
-            <FormControlLabel>
-              <FormControlLabelText>Título</FormControlLabelText>
-            </FormControlLabel>
-            <Input>
+        <RNView style={{ gap: 16, marginTop: 18 }}>
+          <RNView>
+            <RNText style={styles.label}>Título</RNText>
+            <Input {...inputProps} h={44}>
               <InputField testID="sheet-title" value={title} onChangeText={(v) => { setTitle(v); clearError("title"); }} placeholder="Introduce un título" />
             </Input>
-            {errors.title ? <Text color="$red600" fontSize="$sm">{errors.title}</Text> : null}
-          </FormControl>
+            {errors.title ? <RNText style={styles.error}>{errors.title}</RNText> : null}
+          </RNView>
 
-          <FormControl>
-            <FormControlLabel>
-              <FormControlLabelText>Descripción</FormControlLabelText>
-            </FormControlLabel>
-            <Textarea>
+          <RNView>
+            <RNText style={styles.label}>Descripción</RNText>
+            <Textarea {...inputProps}>
               <TextareaInput value={description} onChangeText={setDescription} placeholder="Descripción opcional" />
             </Textarea>
-          </FormControl>
+          </RNView>
 
-          <FormControl>
-            <FormControlLabel>
-              <FormControlLabelText>Proyecto</FormControlLabelText>
-            </FormControlLabel>
-            <Input>
+          <RNView>
+            <RNText style={styles.label}>Proyecto</RNText>
+            <Input {...inputProps} h={44}>
               <InputField testID="sheet-project" value={project} onChangeText={(v) => { setProject(v); clearError("project"); }} placeholder="Nombre del proyecto" />
             </Input>
-            {errors.project ? <Text color="$red600" fontSize="$sm">{errors.project}</Text> : null}
-          </FormControl>
+            {errors.project ? <RNText style={styles.error}>{errors.project}</RNText> : null}
+          </RNView>
 
+          {submitError ? <Banner tone="danger" testID="sheet-submit-error">{submitError}</Banner> : null}
 
-          {submitError ? (
-            <Text color="$red600" textAlign="center" testID="sheet-submit-error">{submitError}</Text>
-          ) : null}
-
-          <HStack space="sm" justifyContent="center">
-            <Button testID="sheet-create" bg="$indigo600" onPress={handleCreate} isDisabled={submitting}>
+          <RNView style={styles.actions}>
+            <Button variant="outline" action="secondary" borderRadius="$lg" onPress={() => onClose?.()}>
+              <ButtonText>Cancelar</ButtonText>
+            </Button>
+            <Button testID="sheet-create" bg="$indigo600" borderRadius="$lg" onPress={handleCreate} isDisabled={submitting}>
               <ButtonText>{submitting ? "Creando..." : "Crear"}</ButtonText>
             </Button>
-          </HStack>
-        </VStack>
-      </Box>
-    </Box>
+          </RNView>
+        </RNView>
+      </RNView>
+    </RNView>
   );
 }
+
+const styles = StyleSheet.create({
+  wrap: { width: "100%", alignItems: "center", justifyContent: "center" },
+  panel: {
+    position: "relative", width: "100%", maxWidth: 640, backgroundColor: palette.surface, borderRadius: 16, borderWidth: 1, borderColor: palette.border, padding: 22, overflow: "hidden",
+    shadowColor: "#1e1b4b", shadowOpacity: 0.07, shadowRadius: 18, shadowOffset: { width: 0, height: 6 },
+  },
+  strip: { position: "absolute", left: 0, right: 0, top: 0, height: 4, backgroundColor: palette.primary },
+  closeBtn: { position: "absolute", right: 12, top: 14, zIndex: 1 },
+  head: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 4 },
+  headIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: palette.primarySoft, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 20, fontWeight: "800", color: palette.text, letterSpacing: -0.3 },
+  sub: { fontSize: 13, color: palette.textMuted, marginTop: 2 },
+  label: { fontSize: 12.5, fontWeight: "700", color: "#374151", marginBottom: 6 },
+  error: { color: palette.danger, fontSize: 12.5, marginTop: 4 },
+  actions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 4 },
+});

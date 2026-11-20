@@ -1,20 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
-  VStack,
   HStack,
-  Heading,
-  Text,
-  FormControl,
-  FormControlLabel,
-  FormControlLabelText,
   Input,
   InputField,
-  Textarea,
-  TextareaInput,
+  InputSlot,
   Button,
   ButtonText,
-  Pressable,
   Icon,
   ScrollView,
   Select,
@@ -29,12 +21,12 @@ import {
   SelectScrollView,
   SelectIcon,
 } from "@gluestack-ui/themed";
-import { Platform, Linking } from "react-native";
+import { Platform, Linking, Image, Pressable, StyleSheet, View as RNView, Text as RNText } from "react-native";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as ImagePicker from "expo-image-picker";
 import * as WebBrowser from "expo-web-browser";
-import { X, Plus, Trash2, CheckCircle2, XCircle, Download } from "lucide-react-native";
+import { X, Plus, Trash2, CheckCircle2, XCircle, Folder, CalendarDays, ListOrdered, Euro, CreditCard, Paperclip, ImagePlus, Receipt, History, RotateCcw } from "lucide-react-native";
 import { supabase } from "@/utils/supabase";
 import { ExpenseLinePlain, ExpenseSheet, SheetHistoryEntry } from "@/constants/types";
 import useAux from "@/context/useAux";
@@ -44,9 +36,8 @@ import { historyLabel } from "@/utils/sheetHistory";
 import { validateLine } from "@/utils/validation";
 import { checkPhoto, safeFileName } from "@/utils/files";
 import { confirmAction } from "@/utils/confirm";
-import { StatusBadge } from "@/components/custom/ui";
-import { palette } from "@/constants/theme";
-import { View as RNView, Text as RNText } from "react-native";
+import { Banner, CategoryPill, EmptyState, IconButton, StatTile, StatusBadge } from "@/components/custom/ui";
+import { palette, statusStyle } from "@/constants/theme";
 
 type SheetViewProps = {
   sheet: ExpenseSheet;
@@ -105,7 +96,6 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
   }, [sheet?.id]);
 
   const fetchExpenseLines = async () => {
-    console.log("Fetch ExpenseLines")
     setLoading(true);
     setListError(null);
 
@@ -292,6 +282,8 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
   };
 
   const formatDate = formatDateSafe;
+  // El aviso de un campo desaparece en cuanto se corrige
+  const clearFormError = (key: string) => setFormErrors((e) => (e[key] ? Object.fromEntries(Object.entries(e).filter(([k]) => k !== key)) : e));
 
   // El total de la cabecera sigue a las lineas cargadas (antes se quedaba con el valor de la lista hasta recargar)
   const displayTotal = useMemo(() => {
@@ -374,207 +366,169 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
     }
   };
 
-  const FieldError = ({ name }: { name: string }) =>
-    formErrors[name] ? (
-      <Text color="$red600" fontSize="$sm" testID={`error-${name}`}>
-        {formErrors[name]}
-      </Text>
-    ) : null;
+  const canEditLines = isOwner && statusId === SheetStatusID.PENDIENTE;
+  const st = statusStyle(statusId);
+  const rejectedMsg = `Hoja rechazada. Reenvíala a aprobación para poder corregirla.${sheet.review_note ? ` Motivo: ${sheet.review_note}` : ""}`;
+
+  const removePhoto = () => {
+    setSelectedPhotoUri(null);
+    setSelectedPhotoFile(null);
+    setSelectedPhotoName(null);
+  };
+
+  const attachButton = (line: ExpenseLinePlain, label: string, withText = false) => (
+    <Pressable
+      testID={`open-attachment-${line.id}`}
+      onPress={() => openAttachment(line)}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={6}
+      style={({ hovered, pressed }: any) => [styles.attachBtn, (hovered || pressed) && { backgroundColor: palette.primarySoft }]}
+    >
+      <Paperclip size={15} color={palette.primary} />
+      {withText ? <RNText style={styles.attachText}>{Platform.OS === "web" ? "Abrir" : "Descargar"}</RNText> : null}
+    </Pressable>
+  );
+
+  const deleteButton = (line: ExpenseLinePlain) => (
+    <IconButton testID={`delete-line-${line.id}`} onPress={() => deleteLine(line)} label="Eliminar línea" danger>
+      <Trash2 size={16} color={palette.textMuted} />
+    </IconButton>
+  );
 
   return (
     <Box flex={1} w="$full" alignItems="center" justifyContent={wide ? "flex-start" : "center"}>
-      <Box
-        position="relative"
-        w="$full"
-        flex={1}
-        maxWidth={wide ? 99999 : 720}
-        bg="$white"
-        borderWidth={1}
-        borderColor="$coolGray200"
-        borderRadius="$lg"
-        p={12}
-      >
-        <Pressable
-          onPress={() => onClose?.()}
-          accessibilityLabel="Cerrar"
-          accessibilityRole="button"
-          position="absolute"
-          right="$3"
-          top="$3"
-          zIndex={1}
-          hitSlop={10}
-        >
-          <Icon as={X} size="lg" color="$coolGray700" />
-        </Pressable>
+      <RNView style={[styles.panel, { maxWidth: wide ? 99999 : 720, padding: wide ? 22 : 14 }]}>
+        <RNView style={[styles.strip, { backgroundColor: st.fg }]} />
+        <RNView style={styles.closeBtn}>
+          <IconButton onPress={() => onClose?.()} label="Cerrar">
+            <Icon as={X} size="lg" color="$coolGray700" />
+          </IconButton>
+        </RNView>
 
-        {wide ? (
-          <RNView testID="sheet-header-wide" style={{ paddingRight: 36 }}>
-            {sheet.reference ? (
-              <RNText testID="sheet-reference" style={{ fontSize: 12, fontWeight: "700", color: palette.textMuted, letterSpacing: 0.6, marginBottom: 4 }}>{sheet.reference}</RNText>
-            ) : null}
-            <RNView style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
-              <RNText style={{ fontSize: 22, fontWeight: "800", color: palette.text, marginRight: 12 }}>{sheet.title}</RNText>
-              <StatusBadge statusId={statusId} label={sheet.status?.id === statusId ? sheet.status?.name : undefined} />
-            </RNView>
-            {sheet.description ? (
-              <RNText style={{ fontSize: 14, color: palette.textMuted, marginTop: 6 }}>{sheet.description}</RNText>
-            ) : null}
-            <RNView style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
-              {[
-                ["Proyecto", sheet.project || "-"],
-                ["Creada", formatDate(sheet.create_date)],
-                ["Líneas", String(lines.length)],
-                ["Total", `${formatAmount(displayTotal)} €`],
-              ].map(([k, v]) => (
-                <RNView key={k} style={{ backgroundColor: palette.bg, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, minWidth: 110 }}>
-                  <RNText style={{ fontSize: 11.5, color: palette.textMuted, fontWeight: "600" }}>{k}</RNText>
-                  <RNText style={{ fontSize: 15, color: palette.text, fontWeight: "700", marginTop: 2 }}>{v}</RNText>
-                </RNView>
-              ))}
-            </RNView>
-          </RNView>
-        ) : (
-        <VStack space="md">
+        {/* Toda la hoja se desplaza junta: cabecera, avisos, formulario, líneas e historial */}
+        <ScrollView flex={1} w="$full" contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator>
+        {/* Cabecera */}
+        <RNView testID={wide ? "sheet-header-wide" : "sheet-header"} style={{ paddingRight: 40 }}>
           {sheet.reference ? (
-            <Text textAlign="center" fontSize="$xs" color="$coolGray500" testID="sheet-reference">{sheet.reference}</Text>
+            <RNText testID="sheet-reference" style={styles.reference}>{sheet.reference}</RNText>
           ) : null}
-          <Heading size="lg" textAlign="center">
-            {sheet.title}
-          </Heading>
-          {sheet.description ? (
-            <Text textAlign="center" color="$coolGray600">{sheet.description}</Text>
-          ) : null}
-          <HStack space="md" justifyContent="center">
-            <Text>
-              Proyecto: <Text fontWeight="$bold">{sheet.project}</Text>
-            </Text>
-            <Text>
-              Estado: <Text fontWeight="$bold">{sheet.status?.name}</Text>
-            </Text>
-          </HStack>
-          <HStack space="md" justifyContent="center">
-            <Text>
-              Total: <Text fontWeight="$bold">{formatAmount(displayTotal)} €</Text>
-            </Text>
-            <Text color="$coolGray600">
-              Creado: {formatDate(sheet.create_date)}
-            </Text>
-          </HStack>
-        </VStack>
-        )}
+          <RNView style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", rowGap: 6 }}>
+            <RNText style={[styles.title, { fontSize: wide ? 24 : 20 }]}>{sheet.title}</RNText>
+            <StatusBadge statusId={statusId} label={sheet.status?.id === statusId ? sheet.status?.name : undefined} />
+          </RNView>
+          {sheet.description ? <RNText style={styles.description}>{sheet.description}</RNText> : null}
+          <RNView style={styles.stats}>
+            <StatTile icon={<Folder size={15} color={palette.textMuted} />} label="Proyecto" value={sheet.project || "-"} />
+            <StatTile icon={<CalendarDays size={15} color={palette.textMuted} />} label="Creada" value={formatDate(sheet.create_date)} />
+            <StatTile icon={<ListOrdered size={15} color={palette.textMuted} />} label="Líneas" value={String(lines.length)} />
+            <StatTile icon={<Euro size={15} color="#fff" />} label="Total" value={`${formatAmount(displayTotal)} €`} highlight testID="sheet-total" />
+          </RNView>
+        </RNView>
 
-        {isOwner && statusId === SheetStatusID.PENDIENTE && (
-          <Text mt={8} fontSize="$sm" color="$coolGray600" testID="owner-hint-pending">
-            Pendiente de aprobación por tu responsable. Puedes editarla hasta entonces.
-          </Text>
-        )}
-        {isOwner && statusId === SheetStatusID.RECHAZADO && (
-          <Text mt={8} fontSize="$sm" color="$red600" testID="owner-hint-rejected">
-            Hoja rechazada. Reenvíala a aprobación para poder corregirla.
-            {sheet.review_note ? ` Motivo: ${sheet.review_note}` : ""}
-          </Text>
-        )}
-
-        {!isOwner && statusId === SheetStatusID.PENDIENTE && (
-          <Input mt={10}>
-            <InputField
-              testID="review-note"
-              value={reviewNote}
-              onChangeText={setReviewNote}
-              placeholder="Motivo (opcional, lo verá el empleado)"
-            />
-          </Input>
-        )}
+        <RNView style={{ gap: 10, marginTop: 14 }}>
+          {isOwner && statusId === SheetStatusID.PENDIENTE && (
+            <Banner tone="warning" testID="owner-hint-pending">Pendiente de aprobación por tu responsable. Puedes editarla hasta entonces.</Banner>
+          )}
+          {isOwner && statusId === SheetStatusID.RECHAZADO && (
+            <Banner tone="danger" testID="owner-hint-rejected">{rejectedMsg}</Banner>
+          )}
+          {isOwner && statusId === SheetStatusID.APROBADO && (
+            <Banner tone="success" testID="owner-hint-approved">Hoja aprobada: ya no se puede modificar.</Banner>
+          )}
+          {!isOwner && statusId === SheetStatusID.PENDIENTE && (
+            <Input {...inputProps}>
+              <InputField
+                testID="review-note"
+                value={reviewNote}
+                onChangeText={setReviewNote}
+                placeholder="Motivo (opcional, lo verá el empleado)"
+              />
+            </Input>
+          )}
+        </RNView>
 
         {/* Acciones */}
-        <HStack mt={16} mb={8} alignItems="center" justifyContent="space-between">
-          <Heading size="md">Líneas de gasto</Heading>
+        <RNView style={styles.sectionHead}>
+          <RNView style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 }}>
+            <RNText style={styles.sectionTitle}>Líneas de gasto</RNText>
+            {!loading && !listError ? (
+              <RNView style={styles.countChip}><RNText style={styles.countChipText}>{lines.length}</RNText></RNView>
+            ) : null}
+          </RNView>
           <HStack space="sm" alignItems="center">
             {!isOwner && statusId === SheetStatusID.PENDIENTE && (
               <>
-                <Button testID="approve-sheet" action="positive" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.APROBADO)}>
-                  <Icon as={CheckCircle2} />
+                <Button testID="approve-sheet" action="positive" borderRadius="$lg" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.APROBADO)}>
+                  <Icon as={CheckCircle2} color="$white" />
                   <ButtonText ml="$2">Aprobar</ButtonText>
                 </Button>
-                <Button testID="reject-sheet" action="negative" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.RECHAZADO)}>
-                  <Icon as={XCircle} />
+                <Button testID="reject-sheet" action="negative" borderRadius="$lg" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.RECHAZADO)}>
+                  <Icon as={XCircle} color="$white" />
                   <ButtonText ml="$2">Rechazar</ButtonText>
                 </Button>
               </>
             )}
             {isOwner && statusId === SheetStatusID.RECHAZADO && (
-              <Button testID="resubmit-sheet" bg="$indigo600" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.PENDIENTE)}>
+              <Button testID="resubmit-sheet" bg="$indigo600" borderRadius="$lg" isDisabled={updatingStatus} onPress={() => updateSheetStatus(SheetStatusID.PENDIENTE)}>
+                <Icon as={RotateCcw} color="$white" mr="$2" />
                 <ButtonText>Reenviar a aprobación</ButtonText>
               </Button>
             )}
-            {isOwner && statusId == SheetStatusID.PENDIENTE && (<Button testID="add-line" bg="$indigo600" onPress={() => setCreateOpen((x) => !x)}>
-              <Icon as={Plus} mr="$2" />
-              <ButtonText>Añadir línea</ButtonText>
-            </Button>)}
+            {canEditLines && (
+              <Button testID="add-line" bg="$indigo600" borderRadius="$lg" onPress={() => setCreateOpen((x) => !x)}>
+                <Icon as={Plus} color="$white" mr="$2" />
+                <ButtonText>Añadir línea</ButtonText>
+              </Button>
+            )}
           </HStack>
-        </HStack>
-        {/* Contenido desplazable: formulario + lista/estados */}
-        <ScrollView
-          flex={1}
-          w="$full"
-          contentContainerStyle={{ paddingBottom: 24 }}
-          showsVerticalScrollIndicator
-        >
+        </RNView>
+
           {/* Formulario de creación dentro del scroll */}
           {isOwner && createOpen && (
-            <VStack space="md" mb={16}>
-              <FormControl>
-                <FormControlLabel>
-                  <FormControlLabelText>Título</FormControlLabelText>
-                </FormControlLabel>
-                <Input>
-                  <InputField testID="line-title" value={title} onChangeText={setTitle} placeholder="Título del gasto" />
-                </Input>
-                <FieldError name="title" />
-              </FormControl>
+            <RNView style={styles.form}>
+              <RNView style={styles.formHead}>
+                <RNView style={styles.formIcon}><Plus size={16} color={palette.primary} /></RNView>
+                <RNView style={{ flex: 1 }}>
+                  <RNText style={styles.formTitle}>Nueva línea de gasto</RNText>
+                  <RNText style={styles.formSub}>Rellena los datos del ticket y, si quieres, adjunta la foto.</RNText>
+                </RNView>
+              </RNView>
 
-              <HStack space="md">
-                <FormControl flex={1}>
-                  <FormControlLabel>
-                    <FormControlLabelText>Importe (€)</FormControlLabelText>
-                  </FormControlLabel>
-                  <Input>
-                    <InputField testID="line-amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0,00" />
+              <RNView style={styles.row}>
+                <Field label="Título" name="title" error={formErrors.title} basis={320}>
+                  <Input {...inputProps}>
+                    <InputField testID="line-title" value={title} onChangeText={(v) => { setTitle(v); clearFormError("title"); }} placeholder="Título del gasto" />
                   </Input>
-                  <FieldError name="amount" />
-                </FormControl>
-                <FormControl flex={1}>
-                  <FormControlLabel>
-                    <FormControlLabelText>IVA (%)</FormControlLabelText>
-                  </FormControlLabel>
-                  <Input>
-                    <InputField testID="line-tax" value={tax} onChangeText={setTax} keyboardType="numeric" placeholder="21" />
+                </Field>
+              </RNView>
+
+              <RNView style={styles.row}>
+                <Field label="Importe (€)" name="amount" error={formErrors.amount}>
+                  <Input {...inputProps}>
+                    <InputField testID="line-amount" value={amount} onChangeText={(v) => { setAmount(v); clearFormError("amount"); }} keyboardType="decimal-pad" placeholder="0,00" />
+                    <InputSlot pr="$3"><RNText style={styles.adornment}>€</RNText></InputSlot>
                   </Input>
-                  <FieldError name="tax" />
-                </FormControl>
-              </HStack>
+                </Field>
+                <Field label="IVA (%)" name="tax" error={formErrors.tax}>
+                  <Input {...inputProps}>
+                    <InputField testID="line-tax" value={tax} onChangeText={(v) => { setTax(v); clearFormError("tax"); }} keyboardType="numeric" placeholder="21" />
+                    <InputSlot pr="$3"><RNText style={styles.adornment}>%</RNText></InputSlot>
+                  </Input>
+                </Field>
+                <Field label="Fecha" name="date" error={formErrors.date}>
+                  <Input {...inputProps}>
+                    <InputField testID="line-date" value={date ?? ""} onChangeText={(t) => { setDate(t || null); clearFormError("date"); }} placeholder="YYYY-MM-DD" />
+                    <InputSlot pr="$3"><CalendarDays size={16} color={palette.textMuted} /></InputSlot>
+                  </Input>
+                </Field>
+              </RNView>
 
-              <FormControl>
-                <FormControlLabel>
-                  <FormControlLabelText>Fecha</FormControlLabelText>
-                </FormControlLabel>
-                <Input>
-                  <InputField testID="line-date" value={date ?? ""} onChangeText={(t) => setDate(t || null)} placeholder="YYYY-MM-DD" />
-                </Input>
-                <FieldError name="date" />
-              </FormControl>
-
-              <HStack space="md">
-                <FormControl flex={1}>
-                  <FormControlLabel>
-                    <FormControlLabelText>Tipo de pago</FormControlLabelText>
-                  </FormControlLabel>
+              <RNView style={styles.row}>
+                <Field label="Tipo de pago" name="idPaymentType" error={formErrors.idPaymentType}>
                   {paymentTypes && paymentTypes.length > 0 ? (
-                    <Select
-                      selectedValue={idPaymentType}
-                      onValueChange={(v: string) => setIdPaymentType(v)}
-                    >
-                      <SelectTrigger>
+                    <Select selectedValue={idPaymentType} onValueChange={(v: string) => { setIdPaymentType(v); clearFormError("idPaymentType"); }}>
+                      <SelectTrigger {...inputProps}>
                         <SelectInput placeholder="Selecciona tipo de pago" />
                         <SelectIcon mr="$3" />
                       </SelectTrigger>
@@ -586,39 +540,22 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
                           </SelectDragIndicatorWrapper>
                           <SelectScrollView>
                             {paymentTypes.map((pt) => (
-                              <SelectItem
-                                key={String(pt.id)}
-                                label={pt.name}
-                                value={String(pt.id)}
-                              />
+                              <SelectItem key={String(pt.id)} label={pt.name} value={String(pt.id)} />
                             ))}
                           </SelectScrollView>
                         </SelectContent>
                       </SelectPortal>
                     </Select>
                   ) : (
-                    <Input>
-                      <InputField
-                        testID="line-payment"
-                        value={idPaymentType}
-                        onChangeText={setIdPaymentType}
-                        placeholder="p.ej. 1"
-                      />
+                    <Input {...inputProps}>
+                      <InputField testID="line-payment" value={idPaymentType} onChangeText={setIdPaymentType} placeholder="p.ej. 1" />
                     </Input>
                   )}
-                  <FieldError name="idPaymentType" />
-                </FormControl>
-
-                <FormControl flex={1}>
-                  <FormControlLabel>
-                    <FormControlLabelText>Categoría</FormControlLabelText>
-                  </FormControlLabel>
+                </Field>
+                <Field label="Categoría" name="idCategory" error={formErrors.idCategory}>
                   {categories && categories.length > 0 ? (
-                    <Select
-                      selectedValue={idCategory}
-                      onValueChange={(v: string) => setIdCategory(v)}
-                    >
-                      <SelectTrigger>
+                    <Select selectedValue={idCategory} onValueChange={(v: string) => { setIdCategory(v); clearFormError("idCategory"); }}>
+                      <SelectTrigger {...inputProps}>
                         <SelectInput placeholder="Selecciona categoría" />
                         <SelectIcon mr="$3" />
                       </SelectTrigger>
@@ -630,187 +567,250 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
                           </SelectDragIndicatorWrapper>
                           <SelectScrollView>
                             {categories.map((cat) => (
-                              <SelectItem
-                                key={String(cat.id)}
-                                label={cat.name}
-                                value={String(cat.id)}
-                              />
+                              <SelectItem key={String(cat.id)} label={cat.name} value={String(cat.id)} />
                             ))}
                           </SelectScrollView>
                         </SelectContent>
                       </SelectPortal>
                     </Select>
                   ) : (
-                    <Input>
-                      <InputField
-                        testID="line-category"
-                        value={idCategory}
-                        onChangeText={setIdCategory}
-                        placeholder="p.ej. 1"
-                      />
+                    <Input {...inputProps}>
+                      <InputField testID="line-category" value={idCategory} onChangeText={setIdCategory} placeholder="p.ej. 1" />
                     </Input>
                   )}
-                  <FieldError name="idCategory" />
-                </FormControl>
-              </HStack>
+                </Field>
+              </RNView>
 
-              <FormControl>
-                <FormControlLabel>
-                  <FormControlLabelText>Foto</FormControlLabelText>
-                </FormControlLabel>
-                <HStack space="sm" alignItems="center">
-                  <Button testID="attach-photo" variant="outline" onPress={handleAttachPhoto} isDisabled={uploadingPhoto}>
-                    <ButtonText>Adjuntar imagen</ButtonText>
-                  </Button>
-                  {selectedPhotoName ? (
-                    <Text color="$coolGray700">{selectedPhotoName}</Text>
-                  ) : null}
-                </HStack>
+              {/* Foto del ticket */}
+              <RNView>
+                <RNText style={styles.label}>Foto del ticket</RNText>
+                {selectedPhotoName ? (
+                  <RNView style={styles.photoChosen}>
+                    {selectedPhotoUri ? <Image source={{ uri: selectedPhotoUri }} style={styles.thumb} accessibilityLabel="Vista previa" /> : null}
+                    <RNView style={{ flex: 1 }}>
+                      <RNText style={styles.photoName} numberOfLines={1}>{selectedPhotoName}</RNText>
+                      <RNText style={styles.photoHint}>Se subirá al guardar la línea</RNText>
+                    </RNView>
+                    <IconButton testID="remove-photo" onPress={removePhoto} label="Quitar foto" danger>
+                      <X size={16} color={palette.textMuted} />
+                    </IconButton>
+                  </RNView>
+                ) : (
+                  <Pressable
+                    testID="attach-photo"
+                    onPress={handleAttachPhoto}
+                    disabled={uploadingPhoto}
+                    accessibilityRole="button"
+                    style={({ hovered }: any) => [styles.dropzone, hovered && styles.dropzoneHover]}
+                  >
+                    <RNView style={styles.dropIcon}><ImagePlus size={20} color={palette.primary} /></RNView>
+                    <RNText style={styles.dropTitle}>Adjuntar imagen</RNText>
+                    <RNText style={styles.photoHint}>JPG o PNG, hasta 10 MB</RNText>
+                  </Pressable>
+                )}
                 {/* Fallback para URL manual si se desea */}
-                <Textarea mt={8}>
-                  <TextareaInput value={foto} onChangeText={setFoto} placeholder="URL manual (opcional)" />
-                </Textarea>
-              </FormControl>
+                <Input {...inputProps} mt="$2">
+                  <InputField value={foto} onChangeText={setFoto} placeholder="URL manual (opcional)" autoCapitalize="none" />
+                </Input>
+              </RNView>
 
-              <HStack space="sm" justifyContent="flex-end">
-                <Button variant="outline" action="secondary" onPress={() => setCreateOpen(false)}>
+              <RNView style={styles.formActions}>
+                <Button variant="outline" action="secondary" borderRadius="$lg" onPress={() => setCreateOpen(false)}>
                   <ButtonText>Cancelar</ButtonText>
                 </Button>
-                <Button testID="save-line" bg="$indigo600" onPress={handleCreateLine}>
-                  <ButtonText>Guardar línea</ButtonText>
+                <Button testID="save-line" bg="$indigo600" borderRadius="$lg" isDisabled={uploadingPhoto} onPress={handleCreateLine}>
+                  <ButtonText>{uploadingPhoto ? "Subiendo foto..." : "Guardar línea"}</ButtonText>
                 </Button>
-              </HStack>
-            </VStack>
+              </RNView>
+            </RNView>
           )}
 
           {/* Estados y lista */}
-          {loading && <Text textAlign="center">Cargando líneas...</Text>}
+          {loading && <RNText style={styles.loading}>Cargando líneas...</RNText>}
           {actionError && (
-            <Text textAlign="center" color="$red600" testID="action-error">{actionError}</Text>
+            <RNView style={{ marginBottom: 10 }}><Banner tone="danger" testID="action-error">{actionError}</Banner></RNView>
           )}
-          {!loading && listError && (
-            <Text textAlign="center" color="$red600">{listError}</Text>
-          )}
+          {!loading && listError && <Banner tone="danger">{listError}</Banner>}
           {!loading && !listError && lines.length === 0 && (
-            <Text textAlign="center">No hay líneas todavía</Text>
+            <EmptyState
+              icon={<Receipt size={26} color={palette.primary} />}
+              title="No hay líneas todavía"
+              hint={canEditLines ? "Pulsa «Añadir línea» para registrar el primer gasto." : undefined}
+            />
           )}
 
           {!loading && !listError && lines.length > 0 && (
-            <>
-              {wide && (
-                <RNView style={{ flexDirection: "row", paddingHorizontal: 12, paddingBottom: 8 }} testID="lines-table-head">
-                  {[["Concepto", 3], ["Fecha", 1.4], ["Categoría", 1.6], ["Pago", 1.6], ["IVA", 0.8], ["Importe", 1.4]].map(([h, f]) => (
-                    <RNText key={String(h)} style={{ flex: Number(f), fontSize: 11.5, fontWeight: "700", color: palette.textMuted, textTransform: "uppercase", letterSpacing: 0.4, textAlign: h === "Importe" || h === "IVA" ? "right" : "left" }}>{h}</RNText>
+            wide ? (
+              <RNView style={styles.table}>
+                <RNView style={styles.tableHead} testID="lines-table-head">
+                  {[["Concepto", 2.4], ["Fecha", 1.3], ["Categoría", 2.4], ["Pago", 2.1], ["IVA", 0.7], ["Importe", 1.3]].map(([h, f]) => (
+                    <RNText key={String(h)} style={[styles.th, { flex: Number(f), textAlign: h === "Importe" || h === "IVA" ? "right" : "left" }]}>{h}</RNText>
                   ))}
                   <RNView style={{ width: 80 }} />
                 </RNView>
-              )}
-              {lines.map((line) => wide ? (
-                <RNView key={line.id} testID={`line-row-${line.id}`} style={{ flexDirection: "row", alignItems: "center", backgroundColor: palette.surface, borderTopWidth: 1, borderTopColor: palette.border, paddingVertical: 12, paddingHorizontal: 12 }}>
-                  <RNText style={{ flex: 3, fontSize: 14, fontWeight: "600", color: palette.text }} numberOfLines={1}>{line.title}</RNText>
-                  <RNText style={{ flex: 1.4, fontSize: 13.5, color: palette.textMuted }}>{line.date ? formatDate(line.date) : "-"}</RNText>
-                  <RNText style={{ flex: 1.6, fontSize: 13.5, color: palette.textMuted }} numberOfLines={1}>{categoryNames[String(line.id_category)] ?? "-"}</RNText>
-                  <RNText style={{ flex: 1.6, fontSize: 13.5, color: palette.textMuted }} numberOfLines={1}>{paymentNames[String(line.id_payment_type)] ?? "-"}</RNText>
-                  <RNText style={{ flex: 0.8, fontSize: 13.5, color: palette.textMuted, textAlign: "right" }}>{line.tax}%</RNText>
-                  <RNText style={{ flex: 1.4, fontSize: 14, fontWeight: "700", color: palette.text, textAlign: "right" }}>{formatAmount(line.amount)} €</RNText>
-                  <RNView style={{ width: 80, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
-                    {(line.foto || line.foto_path) && (
-                      <Pressable testID={`open-attachment-${line.id}`} onPress={() => openAttachment(line)} accessibilityRole="button" accessibilityLabel="Abrir adjunto">
-                        <Icon as={Download} />
-                      </Pressable>
-                    )}
-                    {isOwner && statusId === SheetStatusID.PENDIENTE && (
-                      <Pressable
-                        testID={`delete-line-${line.id}`}
-                        onPress={() => deleteLine(line)}
-                        accessibilityLabel="Eliminar línea"
-                        accessibilityRole="button"
-                        hitSlop={10}
-                      >
-                        <Icon as={Trash2} size="lg" color="$coolGray700" />
-                      </Pressable>
-                    )}
-                  </RNView>
+                {lines.map((line) => (
+                  <Pressable
+                    key={line.id}
+                    testID={`line-row-${line.id}`}
+                    style={({ hovered }: any) => [styles.tr, hovered && { backgroundColor: "#f8f8ff" }]}
+                  >
+                    <RNText style={[styles.td, { flex: 2.4, fontWeight: "600", color: palette.text, fontSize: 14 }]} numberOfLines={1}>{line.title}</RNText>
+                    <RNText style={[styles.td, { flex: 1.3 }]}>{line.date ? formatDate(line.date) : "-"}</RNText>
+                    <RNView style={{ flex: 2.4, paddingRight: 8 }}>
+                      <CategoryPill name={categoryNames[String(line.id_category)]} colorKey={line.id_category} />
+                    </RNView>
+                    <RNView style={{ flex: 2.1, flexDirection: "row", alignItems: "center", gap: 6, paddingRight: 8 }}>
+                      <CreditCard size={14} color={palette.textMuted} />
+                      <RNText style={[styles.td, { flexShrink: 1 }]} numberOfLines={1}>{paymentNames[String(line.id_payment_type)] ?? "-"}</RNText>
+                    </RNView>
+                    <RNText style={[styles.td, { flex: 0.7, textAlign: "right" }]}>{line.tax}%</RNText>
+                    <RNText style={[styles.td, styles.amountCell, { flex: 1.3 }]}>{formatAmount(line.amount)} €</RNText>
+                    <RNView style={{ width: 80, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 4 }}>
+                      {(line.foto || line.foto_path) && attachButton(line, "Abrir adjunto")}
+                      {canEditLines && deleteButton(line)}
+                    </RNView>
+                  </Pressable>
+                ))}
+                <RNView style={styles.tfoot} testID="lines-total">
+                  <RNText style={styles.tfootLabel}>Total</RNText>
+                  <RNText style={styles.tfootValue}>{formatAmount(displayTotal)} €</RNText>
+                  <RNView style={{ width: 80 }} />
                 </RNView>
-              ) : (
-                <Box
-                  key={line.id}
-                  w="$full"
-                  bg="$coolGray100"
-                  p={4}
-                  borderRadius="$lg"
-                  borderWidth={1}
-                  borderColor="$coolGray200"
-                  mb={8}
-                >
-                  <HStack alignItems="center" justifyContent="space-between" space="md">
-                    <VStack space="sm" style={{ flex: 1 }}>
-                      <Heading size="sm">{line.title}</Heading>
-                      <HStack space="md">
-                        <Text>
-                          Importe: <Text fontWeight="$bold">{formatAmount(line.amount)} €</Text>
-                        </Text>
-                        <Text>
-                          IVA: <Text fontWeight="$bold">{line.tax}%</Text>
-                        </Text>
-                      </HStack>
-                      {line.date && (
-                        <Text color="$coolGray600">Fecha: {formatDate(line.date)}</Text>
-                      )}
-                      {(line.foto || line.foto_path) && (
-                        <HStack space="xs" alignItems="center">
-                          <Icon as={CheckCircle2} color="$green600" />
-                        </HStack>
-                      )}
-                    </VStack>
-                    <HStack alignItems="center" space="sm">
-                      {(line.foto || line.foto_path) && (
-                        <Pressable
-                          testID={`open-attachment-${line.id}`}
-                          onPress={() => openAttachment(line)}
-                          accessibilityRole="button"
-                          accessibilityLabel={Platform.OS === 'web' ? 'Abrir adjunto' : 'Descargar adjunto'}
-                        >
-                          <HStack space="xs" alignItems="center">
-                            <Icon as={Download} />
-                            <Text>{Platform.OS === 'web' ? 'Abrir' : 'Descargar'}</Text>
-                          </HStack>
-                        </Pressable>
-                      )}
-                      {isOwner && statusId === SheetStatusID.PENDIENTE && (
-                      <Pressable
-                        testID={`delete-line-${line.id}`}
-                        onPress={() => deleteLine(line)}
-                        accessibilityLabel="Eliminar línea"
-                        accessibilityRole="button"
-                        hitSlop={10}
-                      >
-                        <Icon as={Trash2} size="lg" color="$coolGray700" />
-                      </Pressable>
-                      )}
-                    </HStack>
-                  </HStack>
-                </Box>
-              ))}
-            </>
+              </RNView>
+            ) : (
+              <RNView style={{ gap: 10 }}>
+                {lines.map((line) => (
+                  <RNView key={line.id} testID={`line-row-${line.id}`} style={styles.lineCard}>
+                    <RNView style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <RNText style={[styles.lineTitle, { flex: 1 }]} numberOfLines={2}>{line.title}</RNText>
+                      <RNText style={styles.lineAmount}>{formatAmount(line.amount)} €</RNText>
+                    </RNView>
+                    <RNView style={styles.lineMeta}>
+                      <CategoryPill name={categoryNames[String(line.id_category)]} colorKey={line.id_category} />
+                      {paymentNames[String(line.id_payment_type)] ? (
+                        <RNView style={styles.metaItem}><CreditCard size={13} color={palette.textMuted} /><RNText style={styles.metaText}>{paymentNames[String(line.id_payment_type)]}</RNText></RNView>
+                      ) : null}
+                      {line.date ? (
+                        <RNView style={styles.metaItem}><CalendarDays size={13} color={palette.textMuted} /><RNText style={styles.metaText}>{formatDate(line.date)}</RNText></RNView>
+                      ) : null}
+                      <RNText style={styles.metaText}>IVA {line.tax}%</RNText>
+                    </RNView>
+                    {((line.foto || line.foto_path) || canEditLines) ? (
+                      <RNView style={styles.lineActions}>
+                        {(line.foto || line.foto_path) && attachButton(line, Platform.OS === "web" ? "Abrir adjunto" : "Descargar adjunto", true)}
+                        {canEditLines && deleteButton(line)}
+                      </RNView>
+                    ) : null}
+                  </RNView>
+                ))}
+                <RNView style={styles.totalBar} testID="lines-total">
+                  <RNText style={styles.tfootLabel}>Total</RNText>
+                  <RNText style={styles.tfootValue}>{formatAmount(displayTotal)} €</RNText>
+                </RNView>
+              </RNView>
+            )
           )}
+
           {history.length > 0 && (
-            <RNView testID="sheet-history" style={{ marginTop: 18, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14 }}>
-              <RNText style={{ fontSize: 13, fontWeight: "700", color: palette.text, marginBottom: 8 }}>Historial</RNText>
-              {history.map((h) => (
-                <RNView key={h.id} testID="history-row" style={{ marginBottom: 8 }}>
-                  <RNText style={{ fontSize: 13.5, color: palette.text }}>
-                    <RNText style={{ fontWeight: "700" }}>{historyLabel(h)}</RNText>
-                    {h.changed_by_name ? ` · ${h.changed_by_name}` : ""}
-                    <RNText style={{ color: palette.textMuted }}>{`  ${formatDateTimeSafe(h.changed_at)}`}</RNText>
-                  </RNText>
-                  {h.note ? <RNText style={{ fontSize: 13, color: palette.textMuted, marginTop: 2 }}>{`“${h.note}”`}</RNText> : null}
+            <RNView testID="sheet-history" style={styles.history}>
+              <RNView style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                <History size={15} color={palette.textMuted} />
+                <RNText style={styles.sectionTitleSm}>Historial</RNText>
+              </RNView>
+              {history.map((h, i) => (
+                <RNView key={h.id} testID="history-row" style={{ flexDirection: "row", gap: 12 }}>
+                  <RNView style={{ alignItems: "center", width: 12 }}>
+                    <RNView style={styles.tlDot} />
+                    {i < history.length - 1 ? <RNView style={styles.tlLine} /> : null}
+                  </RNView>
+                  <RNView style={{ flex: 1, paddingBottom: i < history.length - 1 ? 14 : 0 }}>
+                    <RNText style={{ fontSize: 13.5, color: palette.text }}>
+                      <RNText style={{ fontWeight: "700" }}>{historyLabel(h)}</RNText>
+                      {h.changed_by_name ? ` · ${h.changed_by_name}` : ""}
+                    </RNText>
+                    <RNText style={{ fontSize: 12, color: palette.textMuted, marginTop: 1 }}>{formatDateTimeSafe(h.changed_at)}</RNText>
+                    {h.note ? <RNText style={styles.note}>{`“${h.note}”`}</RNText> : null}
+                  </RNView>
                 </RNView>
               ))}
             </RNView>
           )}
         </ScrollView>
-      </Box>
+      </RNView>
     </Box>
   );
 }
+
+// Campo de formulario: etiqueta, control y error de validacion (que tambien se quita al corregir)
+function Field({ label, name, error, children, basis = 160 }: { label: string; name: string; error?: string; children: React.ReactNode; basis?: number }) {
+  return (
+    <RNView style={{ flexGrow: 1, flexBasis: basis, minWidth: 0 }}>
+      <RNText style={styles.label}>{label}</RNText>
+      {children}
+      {error ? <RNText testID={`error-${name}`} style={styles.fieldError}>{error}</RNText> : null}
+    </RNView>
+  );
+}
+
+// Estilo comun de los campos (esquinas redondeadas, borde que se tiñe de indigo al enfocar)
+const inputProps: any = { borderRadius: "$lg", h: 44, bg: "$white", borderColor: "$coolGray300", "$focus-borderColor": "$indigo600" };
+
+const styles = StyleSheet.create({
+  panel: {
+    position: "relative", width: "100%", flex: 1, backgroundColor: palette.surface, borderRadius: 16, borderWidth: 1, borderColor: palette.border, overflow: "hidden",
+    shadowColor: "#1e1b4b", shadowOpacity: 0.07, shadowRadius: 18, shadowOffset: { width: 0, height: 6 },
+  },
+  strip: { position: "absolute", left: 0, right: 0, top: 0, height: 4 },
+  closeBtn: { position: "absolute", right: 12, top: 14, zIndex: 1 },
+  reference: { fontSize: 11.5, fontWeight: "700", color: palette.primary, letterSpacing: 0.8, marginBottom: 4, marginTop: 4 },
+  title: { fontWeight: "800", color: palette.text, marginRight: 12, letterSpacing: -0.3 },
+  description: { fontSize: 14, color: palette.textMuted, marginTop: 6, lineHeight: 20 },
+  stats: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 16 },
+  sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginTop: 20, marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: palette.text },
+  sectionTitleSm: { fontSize: 13, fontWeight: "700", color: palette.text },
+  countChip: { backgroundColor: palette.primarySoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 },
+  countChipText: { fontSize: 12, fontWeight: "700", color: palette.primary },
+  loading: { textAlign: "center", color: palette.textMuted, paddingVertical: 24 },
+  form: { backgroundColor: "#fafaff", borderRadius: 14, borderWidth: 1, borderColor: "#e0e2fb", padding: 16, gap: 14, marginBottom: 18 },
+  formHead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  formIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: palette.primarySoft, alignItems: "center", justifyContent: "center" },
+  formTitle: { fontSize: 15, fontWeight: "800", color: palette.text },
+  formSub: { fontSize: 12.5, color: palette.textMuted, marginTop: 1 },
+  row: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  label: { fontSize: 12.5, fontWeight: "700", color: "#374151", marginBottom: 6 },
+  fieldError: { color: palette.danger, fontSize: 12.5, marginTop: 4 },
+  adornment: { color: palette.textMuted, fontSize: 14, fontWeight: "600" },
+  dropzone: { alignItems: "center", paddingVertical: 16, borderRadius: 12, borderWidth: 1.5, borderStyle: "dashed", borderColor: "#c7cbf7", backgroundColor: "#fff" },
+  dropzoneHover: { backgroundColor: palette.primarySoft, borderColor: palette.primary },
+  dropIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.primarySoft, alignItems: "center", justifyContent: "center", marginBottom: 6 },
+  dropTitle: { fontSize: 14, fontWeight: "700", color: palette.primary },
+  photoHint: { fontSize: 12, color: palette.textMuted, marginTop: 1 },
+  photoChosen: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: "#bbf7d0", backgroundColor: "#f0fdf4" },
+  thumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: "#e5e7eb" },
+  photoName: { fontSize: 13.5, fontWeight: "600", color: palette.text },
+  formActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 2 },
+  table: { borderWidth: 1, borderColor: palette.border, borderRadius: 12, overflow: "hidden", backgroundColor: palette.surface },
+  tableHead: { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 10, backgroundColor: palette.bg },
+  th: { fontSize: 11, fontWeight: "700", color: palette.textMuted, textTransform: "uppercase", letterSpacing: 0.5 },
+  tr: { flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: palette.border, paddingVertical: 11, paddingHorizontal: 14, minHeight: 52 },
+  td: { fontSize: 13.5, color: palette.textMuted },
+  amountCell: { fontSize: 14.5, fontWeight: "700", color: palette.text, textAlign: "right", fontVariant: ["tabular-nums"] },
+  tfoot: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 24, borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.primarySoft, paddingVertical: 12, paddingHorizontal: 14 },
+  tfootLabel: { fontSize: 12, fontWeight: "700", color: palette.primary, textTransform: "uppercase", letterSpacing: 0.6 },
+  tfootValue: { fontSize: 16, fontWeight: "800", color: palette.primary, minWidth: 96, textAlign: "right", fontVariant: ["tabular-nums"] },
+  attachBtn: { flexDirection: "row", alignItems: "center", gap: 6, height: 32, minWidth: 32, paddingHorizontal: 8, borderRadius: 8, justifyContent: "center" },
+  attachText: { fontSize: 13, fontWeight: "600", color: palette.primary },
+  lineCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: palette.surface, padding: 12, gap: 8 },
+  lineTitle: { fontSize: 14.5, fontWeight: "700", color: palette.text },
+  lineAmount: { fontSize: 15.5, fontWeight: "800", color: palette.text, fontVariant: ["tabular-nums"] },
+  lineMeta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 12, rowGap: 6 },
+  metaItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  metaText: { fontSize: 12.5, color: palette.textMuted },
+  lineActions: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 6, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 6 },
+  totalBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.primarySoft, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
+  history: { marginTop: 22, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 16 },
+  tlDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.primary, marginTop: 4 },
+  tlLine: { flex: 1, width: 2, backgroundColor: palette.border, marginTop: 2 },
+  note: { fontSize: 13, color: palette.textMuted, marginTop: 3, fontStyle: "italic" },
+});
