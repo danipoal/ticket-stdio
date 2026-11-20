@@ -69,9 +69,18 @@ describe('TabLayout', () => {
     expect(captured.screens.approvals.href).toBeUndefined();
   });
 
-  it('las 5 pantallas estan registradas con titulo en castellano', async () => {
+  it('la pestaña Suscripcion solo existe para administradores (empleados nunca ven ni pagan)', async () => {
     await mount(<TabLayout />);
-    expect(Object.keys(captured.screens).sort()).toEqual(['approvals', 'home', 'settings', 'tickets', 'user']);
+    expect(captured.screens.subscription.href).toBeNull();
+    expect(captured.screens.subscription.title).toBe('Suscripción');
+    mockEmployee = { is_admin: true };
+    await mount(<TabLayout />);
+    expect(captured.screens.subscription.href).toBeUndefined();
+  });
+
+  it('las 6 pantallas estan registradas con titulo en castellano', async () => {
+    await mount(<TabLayout />);
+    expect(Object.keys(captured.screens).sort()).toEqual(['approvals', 'home', 'settings', 'subscription', 'tickets', 'user']);
     expect(captured.screens.approvals.title).toBe('Aprobaciones');
     expect(captured.screens.home.title).toBe('Inicio');
     expect(captured.screens.settings.title).toBe('Equipo');

@@ -67,8 +67,20 @@ export function createSupabaseMock() {
     return Promise.resolve({ data: null, error: null, ...(r ?? {}) });
   };
 
+  // supabase.functions.invoke(nombre, { body }): se registra como "fn:<nombre>"
+  const fnHandlers = new Map<string, any>();
+  const functions = {
+    invoke: (name: string, opts?: any) => {
+      calls.push({ table: `fn:${name}`, op: 'invoke', payload: opts?.body, filters: [] });
+      const h = fnHandlers.get(name);
+      const r = typeof h === 'function' ? h(opts?.body) : h;
+      return Promise.resolve({ data: null, error: null, ...(r ?? {}) });
+    },
+  };
+
   return {
-    client: { from: (t: string) => builder(t), auth, storage, rpc },
+    client: { from: (t: string) => builder(t), auth, storage, rpc, functions },
+    onFunction: (name: string, r: any) => void fnHandlers.set(name, r),
     on: (table: string, op: string, r: Result | ((c: Call) => Result)) =>
       void handlers.set(`${table}:${op}`, r),
     onRpc: (name: string, r: Result | ((args: any) => Result)) => void rpcHandlers.set(name, r),
@@ -80,6 +92,7 @@ export function createSupabaseMock() {
     reset: () => {
       handlers.clear();
       rpcHandlers.clear();
+      fnHandlers.clear();
       calls.length = 0;
       storageUpload.mockClear();
       storageSignedUrl.mockClear();

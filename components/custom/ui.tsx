@@ -50,11 +50,18 @@ export function Chip({ label, count, active, onPress, testID }: { label: string;
   );
 }
 
-export function PrimaryButton({ label, onPress, testID, icon }: { label: string; onPress?: () => void; testID?: string; icon?: React.ReactNode }) {
+export function PrimaryButton({ label, onPress, testID, icon, disabled, secondary }: { label: string; onPress?: () => void; testID?: string; icon?: React.ReactNode; disabled?: boolean; secondary?: boolean }) {
   return (
-    <Pressable testID={testID} onPress={onPress} accessibilityRole="button" style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.85 }]}>
+    <Pressable
+      testID={testID}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
+      style={({ pressed }) => [s.primaryBtn, secondary && s.secondaryBtn, disabled && s.btnDisabled, pressed && !disabled && { opacity: 0.85 }]}
+    >
       {icon}
-      <Text style={s.primaryBtnText}>{label}</Text>
+      <Text style={[s.primaryBtnText, secondary && { color: palette.primary }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -172,5 +179,7 @@ const s = StyleSheet.create({
   iconBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   iconBtnHover: { backgroundColor: palette.primarySoft },
   iconBtnDanger: { backgroundColor: palette.dangerSoft },
+  secondaryBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#c7cbf7' },
+  btnDisabled: { opacity: 0.45 },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

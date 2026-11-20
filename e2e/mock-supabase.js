@@ -80,6 +80,18 @@ function stats(emp) {
   };
 }
 
+// Facturacion simulada. Escenario (cambiable con GET /__mock/billing?mode=...):
+//   free (12 de 50) | low (47 de 50) | blocked (50 de 50) | paid (suscripcion activa)
+const billing = { mode: 'free' };
+function billingStatus(isAdmin) {
+  const seats = employees.filter((e) => e.id_organization === 'o1').length;
+  const base = { organization_id: 1, is_admin: isAdmin, free_limit: 50, seats, price_per_seat_cents: 200, monthly_cents: Math.max(seats, 1) * 200, cancel_at_period_end: false };
+  const m = billing.mode;
+  if (m === 'paid') return { ...base, used: 120, remaining: 0, paid: true, status: 'active', can_create: true, billed_seats: seats, current_period_end: '2027-01-15T00:00:00Z' };
+  const used = m === 'low' ? 47 : m === 'blocked' ? 50 : 12;
+  return { ...base, used, remaining: 50 - used, paid: false, status: 'none', can_create: used < 50, billed_seats: 0, current_period_end: null };
+}
+
 const tables = {
   employees: () => employees,
   Organization: () => organizations,
@@ -143,9 +155,23 @@ const server = http.createServer((req, res) => {
     if (u.pathname === '/auth/v1/logout') return send(204);
     if (u.pathname === '/auth/v1/recover') return send(200, {}); // no revela si el correo existe
     const sub = (() => { try { return JSON.parse(Buffer.from((req.headers.authorization || '').split('.')[1], 'base64url').toString()).sub; } catch { return null; } })();
+    if (u.pathname === '/__mock/billing') { billing.mode = String(u.query.mode || 'free'); return send(200, { mode: billing.mode }); }
+    // Edge Function `billing`: contratar devuelve una URL que vuelve a la app como lo haria Stripe Checkout
+    if (u.pathname === '/functions/v1/billing') {
+      const isAdmin = sub === 'u-admin';
+      const action = JSON.parse(body || '{}').action;
+      const origin = req.headers.origin || '';
+      if (!isAdmin) return send(403, { error: 'forbidden', message: 'Solo la administración de la empresa puede gestionar la suscripción' });
+      if (action === 'checkout') return send(200, { url: origin + '/subscription?checkout=success&session_id=cs_mock_1' });
+      if (action === 'portal') return send(200, { url: origin + '/subscription?portal=1' });
+      if (action === 'confirm') { billing.mode = 'paid'; return send(200, { confirmed: true, status: 'active' }); }
+      if (action === 'sync') return send(200, { synced: true, seats: billingStatus(true).seats });
+      return send(400, { error: 'bad_action', message: 'accion desconocida' });
+    }
     const rpc = /^\/rest\/v1\/rpc\/(\w+)$/.exec(u.pathname);
     if (rpc) {
       const args = JSON.parse(body || '{}');
+      if (rpc[1] === 'billing_status') return send(200, billingStatus(sub === 'u-admin'));
       const okCode = String(args.p_code || '').trim().toUpperCase() === 'ACME1234';
       if (rpc[1] === 'organization_by_code') return send(200, okCode ? [{ id: 1, name: organizations[0].name }] : []);
       if (rpc[1] === 'my_invite_code') return send(200, sub === 'u-admin' ? 'ACME1234' : null);
@@ -166,6 +192,10 @@ const server = http.createServer((req, res) => {
           return send(406, { code: 'PGRST116', message: 'multiple rows' });
         }
         return send(200, rows);
+      }
+      // Sin cupo la base de datos rechaza crear hojas (SQLSTATE PT402 -> HTTP 402)
+      if (m[1] === 'Expense_sheet' && req.method === 'POST' && billing.mode === 'blocked') {
+        return send(402, { code: 'PT402', message: 'ticket_limit_reached', details: null, hint: 'La empresa ha agotado sus tickets gratuitos.' });
       }
       return send(201, []);
     }

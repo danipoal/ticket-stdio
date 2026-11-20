@@ -66,6 +66,18 @@ describe('formatDateSafe', () => {
     expect(formatDateSafe('2025-03-04')).not.toBe('-');
     expect(formatDateSafe('2025-03-04T10:00:00Z')).not.toBe('-');
   });
+  it('REGRESION: siempre dia/mes/año en castellano, sin depender del idioma de la maquina (en CI salia 1/15/2027)', () => {
+    expect(formatDateSafe('2027-01-15T12:00:00Z')).toBe('15/1/2027');
+    expect(formatDateSafe('2025-03-04T12:00:00Z')).toBe('4/3/2025');
+    const original = Intl.DateTimeFormat;
+    // Una maquina con el idioma por defecto en ingles no cambia el resultado
+    jest.spyOn(Date.prototype, 'toLocaleDateString').mockImplementation(function (this: Date, locale?: any, opts?: any) {
+      return locale === 'es-ES' ? new Intl.DateTimeFormat('es-ES', opts).format(this) : new Intl.DateTimeFormat('en-US', opts).format(this);
+    });
+    expect(formatDateSafe('2027-01-15T12:00:00Z')).toBe('15/1/2027');
+    jest.restoreAllMocks();
+    expect(Intl.DateTimeFormat).toBe(original);
+  });
 });
 
 describe('formatAmount', () => {

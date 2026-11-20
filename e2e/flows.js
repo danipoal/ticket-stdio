@@ -106,6 +106,81 @@ const bad = (errors) => errors.filter((e) => !/favicon|Failed to load resource/i
     await ctx.close();
   }
 
+  // ---- Suscripcion (Stripe simulado) y cupo de 50 tickets ----
+  const MOCK = process.env.MOCK_URL || 'http://127.0.0.1:54399';
+  const setBilling = (mode) => fetch(MOCK + '/__mock/billing?mode=' + mode);
+  const disabledAttr = (page, id) => page.$eval(`[data-testid="${id}"]`, (el) => el.getAttribute('aria-disabled')).catch(() => null);
+  {
+    await setBilling('free');
+    const { page, ctx, errors } = await session(browser, { email: 'ana@demo.test', width: 1440, height: 900 });
+    check('suscripcion: la empleada NO ve la pestaña', !(await has(page, 'nav-subscription')));
+    await page.goto(BASE + '/subscription', { waitUntil: 'load' });
+    await wait(1500);
+    let t = await textOf(page);
+    check('suscripcion: la empleada que entra por URL ve el area restringida y ningun boton de pago', t.includes('Área restringida') && !(await has(page, 'sub-checkout')), t.slice(0, 80).replace(/\n/g, ' '));
+
+    await setBilling('low');
+    await page.goto(BASE + '/tickets', { waitUntil: 'load' });
+    await page.waitForSelector('[data-testid="add-button"]', { timeout: 15000 });
+    await wait(1000);
+    check('cupo: quedan pocos -> aviso amarillo y boton activo', (await has(page, 'quota-low')) && (await disabledAttr(page, 'add-button')) !== 'true');
+
+    await setBilling('blocked');
+    await page.goto(BASE + '/tickets', { waitUntil: 'load' });
+    await page.waitForSelector('[data-testid="add-button"]', { timeout: 15000 });
+    await wait(1000);
+    t = await textOf(page);
+    check('cupo agotado: la empleada ve el aviso y "Nueva hoja" desactivado', (await has(page, 'quota-blocked')) && (await disabledAttr(page, 'add-button')) === 'true' && t.includes('no se pueden crear más'), t.slice(0, 120).replace(/\n/g, ' '));
+    check('cupo agotado: la empleada NO ve el enlace a Suscripcion', !(await has(page, 'quota-manage')));
+    check('cupo agotado: puede seguir consultando sus hojas', (await page.$$('[data-testid="sheet-open"]')).length > 0);
+    check('cupo agotado: sin scroll horizontal', (await overflowX(page)) <= 0);
+    check('sin errores de JS (cupo, empleada)', bad(errors).length === 0, bad(errors).slice(0, 2).join(' || '));
+    await ctx.close();
+  }
+  {
+    await setBilling('free');
+    const { page, ctx, errors } = await session(browser, { email: 'admin@demo.test', width: 1440, height: 900 });
+    check('suscripcion: la administracion ve la pestaña', await has(page, 'nav-subscription'));
+    await (await page.$('[data-testid="nav-subscription"]')).click();
+    await page.waitForSelector('[data-testid="plan-card"]', { timeout: 15000 });
+    await wait(500);
+    let t = await textOf(page);
+    check('suscripcion: plan gratuito, uso 12 de 50 y cuota 4 trabajadores x 2 EUR', t.includes('Plan gratuito') && /12\s+de\s+50\s+gratuitos/.test(t) && t.includes('4 trabajadores × 2,00 € = 8,00 € al mes'), t.slice(0, 160).replace(/\n/g, ' '));
+    check('suscripcion: sin scroll horizontal', (await overflowX(page)) <= 0);
+
+    // Contratar: Stripe (simulado) devuelve a la app con ?checkout=success&session_id=...
+    await (await page.$('[data-testid="sub-checkout"]')).click();
+    await page.waitForFunction(() => document.body.innerText.includes('Suscripción activada'), { timeout: 20000 }).catch(() => {});
+    t = await textOf(page);
+    check('suscripcion: al volver del pago se confirma y se activa', t.includes('Suscripción activada') && t.includes('Suscripción activa') && t.includes('sin límite'), t.slice(0, 160).replace(/\n/g, ' '));
+    check('suscripcion: la URL queda limpia (sin session_id)', page.url().endsWith('/subscription'), page.url());
+    check('suscripcion: con plan activo se ofrece gestionar pago y facturas, no contratar', (await has(page, 'sub-portal')) && !(await has(page, 'sub-checkout')));
+
+    // Cupo agotado visto por la administracion: enlace directo a Suscripcion
+    await setBilling('blocked');
+    await page.goto(BASE + '/tickets', { waitUntil: 'load' });
+    await page.waitForSelector('[data-testid="quota-blocked"]', { timeout: 15000 }).catch(() => {});
+    check('cupo agotado: la administracion ve el enlace a Suscripcion', await has(page, 'quota-manage'));
+    await (await page.$('[data-testid="quota-manage"]')).click();
+    await page.waitForSelector('[data-testid="billing-blocked"]', { timeout: 15000 }).catch(() => {});
+    t = await textOf(page);
+    check('cupo agotado: Suscripcion avisa en rojo y ofrece contratar', page.url().endsWith('/subscription') && (await has(page, 'billing-blocked')) && (await has(page, 'sub-checkout')) && t.includes('Plan gratuito agotado'), page.url());
+    check('sin errores de JS (suscripcion, admin)', bad(errors).length === 0, bad(errors).slice(0, 2).join(' || '));
+    await ctx.close();
+  }
+  {
+    await setBilling('blocked');
+    const { page, ctx, errors } = await session(browser, { email: 'ana@demo.test', width: 390, height: 800 });
+    await page.goto(BASE + '/tickets', { waitUntil: 'load' });
+    await page.waitForSelector('[data-testid="add-button"]', { timeout: 15000 });
+    await wait(1000);
+    check('movil: cupo agotado -> aviso y boton + desactivado', (await has(page, 'quota-blocked')) && (await disabledAttr(page, 'add-button')) === 'true');
+    check('movil: cupo agotado sin scroll horizontal', (await overflowX(page)) <= 0, String(await overflowX(page)));
+    check('sin errores de JS (cupo, movil)', bad(errors).length === 0, bad(errors).slice(0, 2).join(' || '));
+    await ctx.close();
+    await setBilling('free');
+  }
+
   // ---- Usuario nuevo: alta con codigo de invitacion ----
   {
     const ctx = await browser.createBrowserContext();
