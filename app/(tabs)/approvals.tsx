@@ -19,7 +19,7 @@ import { filterSheets, statusCounts, StatusFilter } from "@/utils/sheets"
  */
 export default function ApprovalsScreen() {
   const { employee } = useAuth()
-  const { isDesktop } = useBreakpoint()
+  const { isDesktop, listWidth, detailWide } = useBreakpoint()
   const [sheets, setSheets] = useState<ExpenseSheet[]>([])
   const [names, setNames] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -126,7 +126,7 @@ export default function ApprovalsScreen() {
   )
 
   const detail = selected ? (
-    <SheetView sheet={selected} mode="approver" wide={isDesktop} onClose={() => setSelected(null)} onStatusChange={() => load()} />
+    <SheetView sheet={selected} mode="approver" wide={isDesktop && detailWide}onClose={() => setSelected(null)} onStatusChange={() => load()} />
   ) : (
     <Card style={s.placeholder} testID="approvals-placeholder">
       <ClipboardCheck size={34} color={palette.textMuted} />
@@ -142,7 +142,7 @@ export default function ApprovalsScreen() {
       <Page title="Aprobaciones" subtitle={subtitle} maxWidth={1500} scroll={false}>
         {toolbar}
         <View style={s.panes}>
-          <View style={s.listPane}>{list}</View>
+          <View style={[s.listPane, { width: listWidth }]}>{list}</View>
           <View style={s.detailPane}>{detail}</View>
         </View>
       </Page>
