@@ -63,7 +63,7 @@ describe('landing: iconos y enlaces', () => {
 
   it('los enlaces a la aplicacion usan rutas que existen', () => {
     const routes = new Set(['/', '/auth/login', '/auth/signin', '/home', '/subscription']);
-    const internal = all(/href="(\/[^"#]*)"/g).filter((h) => !h.startsWith('/landing/') && h !== '/favicon.ico');
+    const internal = all(/href="(\/[^"#]*)"/g).filter((h) => !h.startsWith('/landing/') && !/^\/(favicon|apple-touch-icon|site\.webmanifest)/.test(h)); // los iconos se prueban en icons.test.ts
     expect(internal.length).toBeGreaterThan(5);
     for (const r of internal) expect(routes.has(r)).toBe(true);
     for (const r of ['auth/login', 'auth/signin']) expect(fs.existsSync(path.join(ROOT, 'app', `${r}.tsx`))).toBe(true);

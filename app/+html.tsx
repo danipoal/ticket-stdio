@@ -30,6 +30,11 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <meta name="theme-color" content="#4f46e5" />
+        {/* Iconos de marca: .ico para navegadores antiguos, SVG nitido en los modernos, apple-touch para iOS y manifest para instalar */}
+        <link rel="icon" href="/favicon.ico" sizes="48x48" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/site.webmanifest" />
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: BOOT_CSS }} />
       </head>

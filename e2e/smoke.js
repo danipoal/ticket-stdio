@@ -28,6 +28,19 @@ const check = (name, ok, extra='') => { console.log((ok?'PASS ':'FAIL ')+name+(e
   check('landing: las pestañas cambian de captura', await page.$eval('#p-sub', (e) => !e.hidden) && await page.$eval('#p-equipo', (e) => e.hidden));
   await page.click('details summary');
   check('landing: las preguntas se despliegan', await page.$eval('details', (e) => e.open));
+  // ---- Iconos de marca ----
+  const icons = await page.evaluate(async () => {
+    const out = {};
+    for (const [u, key] of [['/favicon.ico', 'ico'], ['/favicon.svg', 'svg'], ['/apple-touch-icon.png', 'apple'], ['/icon-512.png', 'i512'], ['/icon-maskable-512.png', 'mask'], ['/site.webmanifest', 'manifest']]) {
+      const r = await fetch(u); out[key] = { status: r.status, type: r.headers.get('content-type') || '', len: (await r.arrayBuffer()).byteLength };
+    }
+    return out;
+  });
+  check('iconos: favicon.ico, svg, apple-touch y manifest se sirven con su tipo', icons.ico.status === 200 && /icon/.test(icons.ico.type) && icons.svg.type.includes('svg') && icons.apple.type === 'image/png' && icons.i512.type === 'image/png' && icons.mask.status === 200 && /manifest|json/.test(icons.manifest.type), JSON.stringify(icons));
+  const manifest = await page.evaluate(() => fetch('/site.webmanifest').then((r) => r.json()));
+  check('iconos: el manifest es JSON valido y todos sus iconos existen', manifest.name === 'Ticket Stdio' && (await page.evaluate(async (m) => (await Promise.all(m.icons.map((i) => fetch(i.src).then((r) => r.ok)))).every(Boolean), manifest)));
+  check('iconos: la landing enlaza el icono de marca (svg + ico + apple-touch)', await page.evaluate(() => ['link[rel="icon"][type="image/svg+xml"]', 'link[rel="icon"][href="/favicon.ico"]', 'link[rel="apple-touch-icon"]', 'link[rel="manifest"]'].every((q) => !!document.querySelector(q))));
+  check('iconos: el favicon.svg carga como imagen (no esta roto)', await page.evaluate(() => new Promise((res) => { const i = new Image(); i.onload = () => res(i.naturalWidth > 0); i.onerror = () => res(false); i.src = '/favicon.svg'; })));
   await page.click('header.top a[href="/auth/login"]');
   check('landing: "Entrar" lleva al login de la app', await waitText('Inicio sesión') && page.url().includes('/auth/login'), page.url());
 
@@ -35,6 +48,7 @@ const check = (name, ok, extra='') => { console.log((ok?'PASS ':'FAIL ')+name+(e
   check('/tickets sin sesion redirige a login', await waitText('Inicio sesión'), page.url());
   check('url termina en /auth/login', page.url().includes('/auth/login'), page.url());
 
+  check('iconos: la app (login) enlaza el icono de marca y no el de Expo', await page.evaluate(() => ['link[rel="icon"][type="image/svg+xml"]', 'link[rel="icon"][href="/favicon.ico"]', 'link[rel="apple-touch-icon"]', 'link[rel="manifest"]'].every((q) => !!document.querySelector(q))));
   await page.goto(BASE + '/auth/signin', { waitUntil: 'networkidle0' });
   check('/auth/signin se mantiene en registro', await waitText('Crear cuenta') && page.url().includes('/auth/signin'), page.url());
 
