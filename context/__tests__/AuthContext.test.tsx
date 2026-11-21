@@ -2,6 +2,7 @@ import * as React from 'react';
 import { act, create } from 'react-test-renderer';
 import { Text } from 'react-native';
 import { db } from '../../test-utils/supabaseMock';
+import { track } from '../../test-utils/render';
 
 jest.mock('@/utils/supabase', () => ({ supabase: require('../../test-utils/supabaseMock').db.client }));
 
@@ -31,6 +32,7 @@ const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0))
 async function mount() {
   let r: any;
   await act(async () => { r = create(<AuthProvider><Probe /></AuthProvider>); });
+  track(r);
   await flush();
   return r;
 }

@@ -13,11 +13,30 @@ export const flush = async () => {
   }
 };
 
+// Arboles montados por los tests. Se desmontan al terminar cada test: si no, sus efectos (temporizadores de AuthProvider, bucles
+// de animacion de BootSplash...) siguen vivos y, cuando saltan, el error cae en OTRO test que corre en ese momento (fallos intermitentes).
+const mounted: any[] = [];
+export function track<T extends { unmount: () => void }>(r: T): T {
+  mounted.push(r);
+  return r;
+}
+export function unmountAll() {
+  for (const r of mounted.splice(0)) {
+    try {
+      act(() => r.unmount());
+    } catch {
+      /* ya desmontado */
+    }
+  }
+}
+if (typeof afterEach === 'function') afterEach(() => unmountAll());
+
 export async function mount(ui: React.ReactElement) {
   let r: any;
   await act(async () => {
     r = create(<GluestackUIProvider config={config}>{ui}</GluestackUIProvider>);
   });
+  track(r);
   await flush();
   return r as ReturnType<typeof create>;
 }

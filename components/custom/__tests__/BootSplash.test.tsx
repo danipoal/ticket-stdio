@@ -3,7 +3,7 @@ import * as React from 'react';
 // Aqui SI se prueban las animaciones reales (el resto de tests las desactivan en jest.setup.js)
 jest.mock('@/hooks/useReducedMotion', () => ({ __esModule: true, default: () => false }));
 import { act } from 'react-test-renderer';
-import { mount, press, text } from '../../../test-utils/render';
+import { mount, press, text, track } from '../../../test-utils/render';
 import BootSplash, { bootLabel, bootSteps } from '../BootSplash';
 import { HOME_ROUTE, LOGIN_ROUTE, PROFILE_ROUTE } from '@/utils/authRouting';
 
@@ -89,6 +89,7 @@ describe('BootSplash', () => {
   it('al dejar de estar activa se desvanece y desaparece del arbol', async () => {
     let r: any;
     await act(async () => { r = require('react-test-renderer').create(<BootSplash active stage="session" />); });
+    track(r);
     expect(ids(r)).toContain('boot-splash');
     await act(async () => { r.update(<BootSplash active={false} stage="session" />); });
     await wait(500);
@@ -100,6 +101,7 @@ describe('BootSplash', () => {
   it('mientras esta activa bloquea los toques; al desvanecerse deja pasar los toques', async () => {
     let r: any;
     await act(async () => { r = require('react-test-renderer').create(<BootSplash active stage="session" />); });
+    track(r);
     const root = () => r.root.findAll((n: any) => typeof n.type === 'string' && n.props.testID === 'boot-splash')[0];
     expect(root().props.pointerEvents).toBe('auto');
     await act(async () => { r.update(<BootSplash active={false} stage="session" />); });
@@ -113,6 +115,7 @@ describe('BootSplash', () => {
     const { create } = require('react-test-renderer');
     let r: any;
     await act(async () => { r = create(<Reduced active stage="session" />); });
+    track(r);
     await act(async () => { r.update(<Reduced active={false} stage="session" />); });
     expect(ids(r)).not.toContain('boot-splash'); // sin esperar al desvanecimiento
   });
