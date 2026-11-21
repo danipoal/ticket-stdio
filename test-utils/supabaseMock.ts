@@ -12,7 +12,7 @@ export type Result = { data?: any; error?: { message: string } | null };
 export type Call = { table: string; op: string; payload?: any; filters: [string, any][]; order?: [string, any]; select?: string };
 
 export function createSupabaseMock() {
-  const handlers = new Map<string, Result | ((call: Call) => Result)>();
+  const handlers = new Map<string, Result | ((call: Call) => Result | Promise<Result>)>();
   const rpcHandlers = new Map<string, Result | ((args: any) => Result)>();
   const calls: Call[] = [];
 
@@ -22,7 +22,8 @@ export function createSupabaseMock() {
       calls.push(call);
       const h = handlers.get(`${table}:${call.op}`);
       const r = typeof h === 'function' ? h(call) : h;
-      return Promise.resolve({ data: null, error: null, ...(r ?? {}) });
+      // El handler puede devolver una promesa (para dejar una consulta "en espera" en un test)
+      return Promise.resolve(r).then((rr) => ({ data: null, error: null, ...(rr ?? {}) }));
     };
     const chain: any = {
       select: (cols?: string) => ((call.select = cols), chain),
@@ -81,7 +82,7 @@ export function createSupabaseMock() {
   return {
     client: { from: (t: string) => builder(t), auth, storage, rpc, functions },
     onFunction: (name: string, r: any) => void fnHandlers.set(name, r),
-    on: (table: string, op: string, r: Result | ((c: Call) => Result)) =>
+    on: (table: string, op: string, r: Result | ((c: Call) => Result | Promise<Result>)) =>
       void handlers.set(`${table}:${op}`, r),
     onRpc: (name: string, r: Result | ((args: any) => Result)) => void rpcHandlers.set(name, r),
     calls,

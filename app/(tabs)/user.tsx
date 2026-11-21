@@ -9,6 +9,7 @@ import { Avatar, Card, CardTitle, PrimaryButton } from "@/components/custom/ui"
 import { palette } from "@/constants/theme"
 import { initials } from "@/utils/dashboard"
 import { useBreakpoint } from "@/hooks/useBreakpoint"
+import { LoadingState } from "@/components/custom/Loading"
 
 function Row({ label, value, icon: Icon }: { label: string; value?: string | null; icon?: any }) {
   return (
@@ -65,7 +66,7 @@ export default function UserScreen() {
   if (loading || !employee) {
     return (
       <Page title="Usuario">
-        <Text style={s.value}>Cargando...</Text>
+        <LoadingState label="Cargando..." />
       </Page>
     )
   }

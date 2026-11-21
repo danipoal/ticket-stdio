@@ -11,6 +11,7 @@ import { BarChart, Donut, HBars } from "@/components/charts/charts"
 import { palette } from "@/constants/theme"
 import { useBreakpoint } from "@/hooks/useBreakpoint"
 import { formatAmount, formatDateSafe, plural } from "@/utils/format"
+import { LoadingState } from "@/components/custom/Loading"
 import {
   LineRow, SheetRow, monthDelta, monthlySpend, recentSheets, sheetTotal,
   spendByCategory, spendByProject, summarize, breakdown,
@@ -100,7 +101,7 @@ export default function HomeScreen() {
   if (loading) {
     return (
       <Page title="Inicio">
-        <Text style={s.state}>Cargando resumen...</Text>
+        <LoadingState label="Cargando resumen..." />
       </Page>
     )
   }

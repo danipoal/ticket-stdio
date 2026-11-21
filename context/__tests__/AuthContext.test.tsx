@@ -4,7 +4,6 @@ import { Text } from 'react-native';
 import { db } from '../../test-utils/supabaseMock';
 
 jest.mock('@/utils/supabase', () => ({ supabase: require('../../test-utils/supabaseMock').db.client }));
-jest.mock('@/components/ui/spinner/index', () => ({ Spinner: () => require('react').createElement('Spinner') }));
 
 const mockReplace = jest.fn();
 let mockPath = '/home';
@@ -170,5 +169,168 @@ describe('AuthProvider', () => {
     await mount();
     const keys = (await AsyncStorage.getAllKeys()) as string[];
     expect(keys).not.toContain('session');
+  });
+});
+
+describe('AuthProvider · pantalla de carga', () => {
+  let authCallback: ((e: string, s: any) => void) | null;
+  const splash = (r: any) => r.root.findAll((n: any) => typeof n.type === 'string' && n.props.testID === 'boot-splash');
+  const label = (r: any) => r.root.findAll((n: any) => typeof n.type === 'string' && n.props.testID === 'boot-label')[0]?.children.join('');
+  const press = async (r: any, id: string) => {
+    const el = r.root.findAll((n: any) => n.props.testID === id && typeof n.props.onPress === 'function')[0];
+    await act(async () => { await el.props.onPress(); });
+    await flush();
+  };
+  const settle = () => act(async () => { await new Promise((res) => setTimeout(res, 450)); });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    db.reset();
+    mockPath = '/home';
+    mockNavKey = 'root';
+    authCallback = null;
+    db.auth.getSession.mockResolvedValue({ data: { session: null } });
+    db.auth.onAuthStateChange.mockImplementation(((cb: any) => { authCallback = cb; return { data: { subscription: { unsubscribe: jest.fn() } } }; }) as any);
+  });
+
+  it('mientras se comprueba la sesion enseña "Comprobando tu sesión…" y NO monta la app', async () => {
+    db.auth.getSession.mockReturnValue(new Promise(() => {}) as any);
+    const r = await mount();
+    expect(splash(r)).toHaveLength(1);
+    expect(label(r)).toBe('Comprobando tu sesión…');
+    expect(rendered(r)).not.toContain('sin-empleado'); // los hijos aun no estan montados
+  });
+
+  it('con sesion enseña "Cargando tu empresa…" hasta que llega la ficha, y luego se retira', async () => {
+    let release: (v: any) => void = () => {};
+    db.auth.getSession.mockResolvedValue({ data: { session } });
+    db.on('employees', 'select', () => new Promise((res) => { release = res; }));
+    const r = await mount();
+    expect(label(r)).toBe('Cargando tu empresa…');
+    expect(mockReplace).not.toHaveBeenCalled();
+    await act(async () => { release({ data: employee }); });
+    await flush();
+    await settle();
+    expect(rendered(r)).toContain('Ana');
+    expect(splash(r)).toHaveLength(0);
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('sin nada que decidir (sesion y empresa en una ruta valida) la pantalla de carga se retira sola', async () => {
+    db.auth.getSession.mockResolvedValue({ data: { session } });
+    db.on('employees', 'select', { data: employee });
+    const r = await mount();
+    await settle();
+    expect(splash(r)).toHaveLength(0);
+  });
+
+  it('REGRESION: hasta que la redireccion se completa sigue la pantalla de carga ("Abriendo tu panel…"), sin enseñar la pantalla equivocada', async () => {
+    mockPath = '/auth/login';
+    db.auth.getSession.mockResolvedValue({ data: { session } });
+    db.on('employees', 'select', { data: employee });
+    const r = await mount();
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/home');
+    expect(splash(r)).toHaveLength(1);
+    expect(label(r)).toBe('Abriendo tu panel…');
+  });
+
+  it('sin ficha de empleado: "Preparando tu perfil…" mientras va a completar el perfil', async () => {
+    db.auth.getSession.mockResolvedValue({ data: { session } });
+    db.on('employees', 'select', { data: null, error: null });
+    const r = await mount();
+    expect(mockReplace).toHaveBeenCalledWith('/auth/completeProfile');
+    expect(label(r)).toBe('Preparando tu perfil…');
+  });
+
+  it('sin sesion en ruta protegida: "Un momento…" y sin pasos (se va al login)', async () => {
+    const r = await mount();
+    expect(mockReplace).toHaveBeenCalledWith('/auth/login');
+    expect(label(r)).toBe('Un momento…');
+    expect(r.root.findAll((n: any) => n.props.testID === 'boot-steps')).toHaveLength(0);
+  });
+
+  it('REGRESION: un fallo de red al cargar la empresa NO manda a "completar perfil" (antes se confundia con "sin ficha")', async () => {
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    db.auth.getSession.mockResolvedValue({ data: { session } });
+    db.on('employees', 'select', { error: { message: 'network down' } });
+    const r = await mount();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(splash(r)).toHaveLength(1);
+    expect(label(r)).toBe('No hemos podido cargar tu empresa');
+    expect(rendered(r)).toContain('Reintentar');
+    err.mockRestore();
+  });
+
+  it('una excepcion al consultar la empresa tambien se trata como fallo, no como "sin ficha"', async () => {
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    db.auth.getSession.mockResolvedValue({ data: { session } });
+    db.on('employees', 'select', () => { throw new Error('boom'); });
+    const r = await mount();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(label(r)).toBe('No hemos podido cargar tu empresa');
+    err.mockRestore();
+  });
+
+  it('Reintentar vuelve a consultar la empresa y, si ya responde, entra sin pasar por completar perfil', async () => {
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    db.auth.getSession.mockResolvedValue({ data: { session } });
+    let fail = true;
+    db.on('employees', 'select', () => (fail ? { error: { message: 'network down' } } : { data: employee }));
+    const r = await mount();
+    expect(label(r)).toBe('No hemos podido cargar tu empresa');
+    fail = false;
+    await press(r, 'boot-retry');
+    await settle();
+    expect(rendered(r)).toContain('Ana');
+    expect(splash(r)).toHaveLength(0);
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(db.calls.filter((c) => c.table === 'employees').length).toBeGreaterThanOrEqual(2);
+    err.mockRestore();
+  });
+
+  it('en el error se puede cerrar sesion', async () => {
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    db.auth.getSession.mockResolvedValue({ data: { session } });
+    db.on('employees', 'select', { error: { message: 'network down' } });
+    const r = await mount();
+    await press(r, 'boot-signout');
+    expect(db.auth.signOut).toHaveBeenCalledTimes(1);
+    err.mockRestore();
+  });
+
+  it('si la carga se alarga mas de 12 s se explica y se ofrecen salidas', async () => {
+    // Se captura el temporizador de 12 s en vez de usar relojes falsos (que no se llevan bien con act asincrono)
+    const real = global.setTimeout;
+    let fire: (() => void) | null = null;
+    const spy = jest.spyOn(global, 'setTimeout').mockImplementation(((fn: any, ms?: number, ...rest: any[]) => {
+      if (ms === 12000) { fire = fn; return 0 as any; }
+      return real(fn, ms, ...rest);
+    }) as any);
+    try {
+      db.auth.getSession.mockReturnValue(new Promise(() => {}) as any);
+      const r = await mount();
+      expect(fire).not.toBeNull();
+      expect(rendered(r)).not.toContain('tardando');
+      await act(async () => { fire!(); });
+      expect(rendered(r)).toContain('tardando más de lo normal');
+      expect(rendered(r)).toContain('Reintentar');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('login posterior: la pantalla de carga vuelve a salir ("Cargando tu empresa…") y se retira al entrar', async () => {
+    mockPath = '/auth/login';
+    let release: (v: any) => void = () => {};
+    db.on('employees', 'select', () => new Promise((res) => { release = res; }));
+    const r = await mount();
+    await settle();
+    await act(async () => { authCallback?.('SIGNED_IN', session); });
+    await flush();
+    expect(splash(r)).toHaveLength(1);
+    expect(label(r)).toBe('Cargando tu empresa…');
+    await act(async () => { release({ data: employee }); });
+    await flush();
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/home');
   });
 });

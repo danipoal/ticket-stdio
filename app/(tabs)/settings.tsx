@@ -10,6 +10,7 @@ import { useBreakpoint } from "@/hooks/useBreakpoint"
 import { initials } from "@/utils/dashboard"
 import { formatAmount } from "@/utils/format"
 import { DashboardStats } from "@/constants/types"
+import { LoadingState } from "@/components/custom/Loading"
 
 export default function SettingsScreen() {
   const { employee, loading: authLoading } = useAuth()
@@ -82,7 +83,7 @@ export default function SettingsScreen() {
 
   return (
     <Page title="Equipo" subtitle="Resumen de los usuarios que administras">
-      {loading && <Text style={s.muted}>Cargando estadísticas...</Text>}
+      {loading && <LoadingState label="Cargando estadísticas..." />}
       {!loading && error && <Text style={[s.muted, { color: palette.danger }]}>{error}</Text>}
 
       {!loading && !error && (

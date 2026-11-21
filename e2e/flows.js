@@ -106,6 +106,48 @@ const bad = (errors) => errors.filter((e) => !/favicon|Failed to load resource/i
     await ctx.close();
   }
 
+  // ---- Pantalla de carga (sesion y empresa) ----
+  {
+    // 1) Antes de que llegue el JavaScript solo se ve el HTML de arranque: marca y "Cargando…", no una pantalla en blanco
+    const ctx0 = await browser.createBrowserContext();
+    const pre = await ctx0.newPage();
+    await pre.setViewport({ width: 1440, height: 900 });
+    await pre.setRequestInterception(true);
+    pre.on('request', (r) => (r.url().includes('/_expo/static/js') ? r.abort() : r.continue()));
+    await pre.goto(BASE + '/home', { waitUntil: 'domcontentloaded' });
+    await wait(500);
+    const bootBox = await pre.$eval('#boot', (el) => { const b = el.getBoundingClientRect(); return { w: b.width, h: b.height, t: el.innerText, bg: getComputedStyle(el).backgroundColor }; }).catch(() => null);
+    check('carga: sin JavaScript se ve el splash de marca a pantalla completa', !!bootBox && bootBox.w >= 1440 && bootBox.h >= 900 && bootBox.t.includes('Ticket Stdio') && bootBox.t.includes('Cargando'), JSON.stringify(bootBox));
+    check('carga: el HTML declara castellano y el titulo de marca', (await pre.evaluate(() => document.documentElement.lang)) === 'es' && (await pre.title()) === 'Ticket Stdio');
+    await ctx0.close();
+
+    // 2) Con sesion: al entrar no queda ningun splash (ni el del HTML ni el de la app)
+    const { page, ctx, errors } = await session(browser, { email: 'ana@demo.test', width: 1440, height: 900 });
+    await wait(800);
+    check('carga: tras entrar no queda ni el splash del HTML ni el de la app', !(await page.$('#boot')) && !(await has(page, 'boot-splash')) && (await textOf(page)).includes('Hola, Ana'));
+    check('sin errores de JS (carga)', bad(errors).length === 0, bad(errors).slice(0, 2).join(' || '));
+
+    // 3) Fallo de red al cargar la empresa: aviso claro, no se confunde con "sin ficha" y se puede reintentar
+    await page.setRequestInterception(true);
+    let down = true;
+    page.on('request', (r) => {
+      if (down && r.url().includes('/rest/v1/employees')) {
+        return r.respond({ status: 503, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ message: 'down' }) });
+      }
+      r.continue().catch(() => {});
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-testid="boot-retry"]', { timeout: 20000 });
+    const te = await textOf(page);
+    check('carga: sin red -> "No hemos podido cargar tu empresa" con Reintentar y Cerrar sesion', te.includes('No hemos podido cargar tu empresa') && (await has(page, 'boot-signout')), te.slice(0, 120).replace(/\n/g, ' '));
+    check('carga: el fallo NO manda a completar perfil (sigue en /home)', page.url().endsWith('/home'), page.url());
+    down = false;
+    await page.click('[data-testid="boot-retry"]');
+    await page.waitForFunction(() => !document.querySelector('[data-testid="boot-splash"]'), { timeout: 15000 }).catch(() => {});
+    check('carga: Reintentar entra en la app cuando vuelve la red', (await textOf(page)).includes('Hola, Ana') && page.url().endsWith('/home'), page.url());
+    await ctx.close();
+  }
+
   // ---- Suscripcion (Stripe simulado) y cupo de 50 tickets ----
   const MOCK = process.env.MOCK_URL || 'http://127.0.0.1:54399';
   const setBilling = (mode) => fetch(MOCK + '/__mock/billing?mode=' + mode);
