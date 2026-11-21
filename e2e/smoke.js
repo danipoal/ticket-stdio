@@ -13,6 +13,24 @@ const check = (name, ok, extra='') => { console.log((ok?'PASS ':'FAIL ')+name+(e
   const bodyText = () => page.evaluate(() => document.body.innerText);
   const waitText = async (t, ms=8000) => { try { await page.waitForFunction(x => document.body.innerText.includes(x), {timeout: ms}, t); return true; } catch { return false; } };
 
+  // ---- Landing publica en la raiz ----
+  await page.goto(BASE + '/', { waitUntil: 'networkidle0' });
+  const land = await bodyText();
+  check('/ es la landing publica (no redirige a la app)', land.includes('sin tickets perdidos') && !page.url().includes('/auth/'), page.url());
+  check('landing: limite de 50 tickets y 2 euros por trabajador', land.includes('50 tickets') && land.includes('2 €') && land.includes('Tickets ilimitados'));
+  check('landing: sin sesion solo se ve "Empezar gratis" (no "Ir a mi panel")',
+    await page.$eval('a[href="/auth/signin"].btn-lg', (el) => el.offsetParent !== null) && await page.$eval('a[href="/home"].btn-lg', (el) => el.offsetParent === null));
+  check('landing: todas las imagenes cargan', await page.evaluate(() => [...document.images].filter((i) => i.loading !== 'lazy').every((i) => i.complete && i.naturalWidth > 0)));
+  check('landing: sin scroll horizontal', (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+  await page.evaluate(() => { const n = document.getElementById('n'); n.value = '25'; n.dispatchEvent(new Event('input')); });
+  check('landing: la calculadora da 2 EUR por trabajador (25 -> 50,00 €)', (await page.$eval('#out', (e) => e.textContent)).includes('50,00 €'), await page.$eval('#out', (e) => e.textContent));
+  await page.click('#tab-sub');
+  check('landing: las pestañas cambian de captura', await page.$eval('#p-sub', (e) => !e.hidden) && await page.$eval('#p-equipo', (e) => e.hidden));
+  await page.click('details summary');
+  check('landing: las preguntas se despliegan', await page.$eval('details', (e) => e.open));
+  await page.click('header.top a[href="/auth/login"]');
+  check('landing: "Entrar" lleva al login de la app', await waitText('Inicio sesión') && page.url().includes('/auth/login'), page.url());
+
   await page.goto(BASE + '/tickets', { waitUntil: 'networkidle0' });
   check('/tickets sin sesion redirige a login', await waitText('Inicio sesión'), page.url());
   check('url termina en /auth/login', page.url().includes('/auth/login'), page.url());

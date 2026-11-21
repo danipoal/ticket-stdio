@@ -1,5 +1,4 @@
-import { Box, Text, VStack, Heading, ScrollView, HStack } from "@gluestack-ui/themed";
-import AddButton from "@/components/custom/AddButton";
+import { Box, Text, VStack, ScrollView, HStack } from "@gluestack-ui/themed";
 import SheetCard from "@/components/custom/SheetCard";
 import CreateSheetView from "@/components/custom/CreateSheetView";
 import SheetView from "@/components/custom/SheetView";
@@ -236,14 +235,16 @@ export default function TicketsScreen() {
   <Box flex={1} bg="$backgroundLight50">
     <Box flex={1} w="$full">
       <VStack flex={1} w="$full" px={4} space="md" alignItems="stretch">
-        <HStack alignItems="center" justifyContent="space-between" my={2}>          
-          <Heading flex={1} size="xl" textAlign="center">
-            Mis Tickets
-          </Heading>
-          <AddButton disabled={quotaBlocked} onPress={() => { setSelectedSheet(null); setCreateSheetView(true); }} />
-
-          {/* Placeholder para mantener el título centrado */}
-          {/* <Box w={40} h={40} /> */}
+        {/* El titulo "Mis Tickets" ya lo pone la cabecera nativa: aqui solo el contador y la accion principal */}
+        <HStack alignItems="center" justifyContent="space-between" my={2}>
+          <RNText style={s.mobileCount}>{sheets.length} {sheets.length === 1 ? "hoja" : "hojas"} de gasto</RNText>
+          <PrimaryButton
+            testID="add-button"
+            label="Nueva hoja"
+            disabled={quotaBlocked}
+            icon={<Plus size={16} color="#fff" style={{ marginRight: 6 }} />}
+            onPress={() => { setSelectedSheet(null); setCreateSheetView(true); }}
+          />
         </HStack>
         {!createSheetView && <QuotaBanner status={billing} isAdmin={!!employee?.is_admin} />}
         {createSheetView && (
@@ -323,6 +324,7 @@ const s = StyleSheet.create({
   panes: { flex: 1, flexDirection: "row", gap: 20, minHeight: 0 },
   listPane: { width: 400 },
   detailPane: { flex: 1, minWidth: 0 },
+  mobileCount: { fontSize: 14, fontWeight: "600", color: palette.textMuted },
   state: { fontSize: 14, color: palette.textMuted, marginVertical: 8 },
   error: { color: palette.danger, marginBottom: 10 },
   placeholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },

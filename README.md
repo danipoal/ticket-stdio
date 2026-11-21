@@ -48,3 +48,14 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+
+## Landing publica
+
+`public/landing/index.html` es una pagina estatica (HTML + CSS + JS en un solo fichero, sin dependencias ni fuentes externas) que
+nginx sirve **solo en la raiz** (`location = /` en `nginx.conf`); el resto de rutas son la app. Expo copia `public/` a `dist/`.
+
+- Imagenes en `public/landing/img/` (capturas reales con datos ficticios, `og.jpg` para redes). Se regeneran con `scripts/landing-shots.js`.
+- Si hay sesion iniciada en el navegador (clave `sb-*-auth-token` de `localStorage`), los botones pasan a "Ir a mi panel".
+- `robots.txt` y `sitemap.xml` tambien salen de `public/`. Las cifras (50 tickets gratis, 2 EUR por trabajador) estan comprobadas
+  contra `supabase/functions/_shared/stripe.ts` en `__tests__/landing.test.ts`.
