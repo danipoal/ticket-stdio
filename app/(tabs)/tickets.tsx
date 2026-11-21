@@ -18,6 +18,7 @@ import { confirmAction } from "@/utils/confirm";
 import useBilling from "@/hooks/useBilling";
 import QuotaBanner from "@/components/custom/QuotaBanner";
 import { isLimitError, limitLevel, limitMessage } from "@/utils/billing";
+import { SheetListSkeleton } from "@/components/custom/Loading";
 
 export default function TicketsScreen() {
   const { employee } = useAuth();
@@ -189,7 +190,7 @@ export default function TicketsScreen() {
     return (
       <Page
         title="Mis tickets"
-        subtitle={`${sheets.length} ${sheets.length === 1 ? "hoja" : "hojas"} de gasto`}
+        subtitle={loading ? "Cargando…" : `${sheets.length} ${sheets.length === 1 ? "hoja" : "hojas"} de gasto`}
         maxWidth={1500}
         scroll={false}
         actions={
@@ -207,7 +208,7 @@ export default function TicketsScreen() {
         {actionError && <RNText style={s.error} testID="tickets-action-error">{actionError}</RNText>}
         <View style={s.panes}>
           <View style={[s.listPane, { width: listWidth }]}>
-            {loading && <RNText style={s.state}>Cargando tickets...</RNText>}
+            {loading && <SheetListSkeleton label="Cargando tickets..." />}
             {!loading && error && <RNText style={[s.state, { color: palette.danger }]}>{error}</RNText>}
             {!loading && !error && sheets.length === 0 && <RNText style={s.state}>No tienes tickets todavía</RNText>}
             {noMatches && <RNText style={s.state}>Ninguna hoja coincide con la búsqueda</RNText>}
@@ -237,7 +238,7 @@ export default function TicketsScreen() {
       <VStack flex={1} w="$full" px={4} space="md" alignItems="stretch">
         {/* El titulo "Mis Tickets" ya lo pone la cabecera nativa: aqui solo el contador y la accion principal */}
         <HStack alignItems="center" justifyContent="space-between" my={2}>
-          <RNText style={s.mobileCount}>{sheets.length} {sheets.length === 1 ? "hoja" : "hojas"} de gasto</RNText>
+          <RNText style={s.mobileCount}>{loading ? "Cargando…" : `${sheets.length} ${sheets.length === 1 ? "hoja" : "hojas"} de gasto`}</RNText>
           <PrimaryButton
             testID="add-button"
             label="Nueva hoja"
@@ -271,9 +272,7 @@ export default function TicketsScreen() {
           </Text>
         )}
 
-        {loading && (
-          <Text textAlign="center">Cargando tickets...</Text>
-        )}
+        {loading && <SheetListSkeleton count={3} label="Cargando tickets..." />}
 
         {!loading && error && (
           <Text textAlign="center" color="$red600">

@@ -38,6 +38,7 @@ import { checkPhoto, safeFileName } from "@/utils/files";
 import { confirmAction } from "@/utils/confirm";
 import { Banner, CategoryPill, EmptyState, IconButton, StatTile, StatusBadge } from "@/components/custom/ui";
 import { palette, statusStyle } from "@/constants/theme";
+import { LoadingState } from "@/components/custom/Loading";
 
 type SheetViewProps = {
   sheet: ExpenseSheet;
@@ -628,7 +629,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
           )}
 
           {/* Estados y lista */}
-          {loading && <RNText style={styles.loading}>Cargando líneas...</RNText>}
+          {loading && <LoadingState label="Cargando líneas..." compact />}
           {actionError && (
             <RNView style={{ marginBottom: 10 }}><Banner tone="danger" testID="action-error">{actionError}</Banner></RNView>
           )}

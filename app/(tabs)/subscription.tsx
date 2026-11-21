@@ -9,6 +9,7 @@ import { Banner, Card, CardTitle, PrimaryButton } from "@/components/custom/ui"
 import { palette } from "@/constants/theme"
 import { useBreakpoint } from "@/hooks/useBreakpoint"
 import { eur, invokeBilling, limitLevel, planLabel, priceBreakdown, usagePercent } from "@/utils/billing"
+import { LoadingState } from "@/components/custom/Loading"
 
 type Notice = { tone: "info" | "success" | "danger" | "warning"; text: string }
 const TONE_COLOR = { neutral: palette.textMuted, success: palette.success, warning: palette.warning, danger: palette.danger } as const
@@ -101,7 +102,7 @@ export default function SubscriptionScreen() {
   if (authLoading || loading) {
     return (
       <Page title="Suscripción">
-        <Text style={s.muted}>Cargando...</Text>
+        <LoadingState label="Cargando..." />
       </Page>
     )
   }

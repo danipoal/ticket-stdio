@@ -11,6 +11,7 @@ import { palette } from "@/constants/theme"
 import { useBreakpoint } from "@/hooks/useBreakpoint"
 import { ExpenseSheet } from "@/constants/types"
 import { filterSheets, statusCounts, StatusFilter } from "@/utils/sheets"
+import { SheetListSkeleton } from "@/components/custom/Loading"
 
 /**
  * Aprobaciones (administradores): hojas de las personas a las que aprueban.
@@ -104,7 +105,7 @@ export default function ApprovalsScreen() {
 
   const list = (
     <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-      {loading && <Text style={s.muted}>Cargando...</Text>}
+      {loading && <SheetListSkeleton count={3} label="Cargando..." />}
       {!loading && error && <Text style={[s.muted, { color: palette.danger }]}>{error}</Text>}
       {!loading && !error && sheets.length === 0 && <Text style={s.muted}>No hay hojas que revisar.</Text>}
       {!loading && !error && sheets.length > 0 && visible.length === 0 && (
