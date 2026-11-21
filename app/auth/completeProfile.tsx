@@ -9,7 +9,7 @@ import { Box } from "@/components/ui/box";
 import useAuth from "@/context/useAuth"
 import { friendlyJoinError } from "@/utils/sheetHistory";
 
-const completeProfile = () => {
+const CompleteProfile = () => {
   const [code, setCode] = useState("");
   const [isValidated, setIsValidated] = useState(false);
 
@@ -148,4 +148,4 @@ const completeProfile = () => {
     )
 }
 
-export default completeProfile;
+export default CompleteProfile;

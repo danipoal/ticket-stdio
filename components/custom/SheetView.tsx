@@ -194,7 +194,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
           setSelectedPhotoName(asset.fileName ?? "foto.jpg");
           setSelectedPhotoFile(null); // usaremos fetch->blob en móvil
         }
-      } catch (e) {
+      } catch {
         setActionError("No se pudo abrir la galería");
       }
     }
@@ -244,7 +244,7 @@ export default function SheetView({ sheet, onClose, onStatusChange, onLinesChang
         }
         // El bucket es privado: se guarda la RUTA y se abre con una URL firmada temporal
         uploadedPath = path;
-      } catch (e) {
+      } catch {
         setActionError("No se pudo subir la foto. La línea no se ha guardado");
         return;
       } finally {

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Controller, useForm } from "react-hook-form";
 import { useRouter } from "expo-router";
 import { requestPasswordReset } from "@/utils/supabase";
