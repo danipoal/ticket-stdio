@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { act } from 'react-test-renderer';
 import { flush, mount, press, text, type } from '../test-utils/render';
 import { db } from '../test-utils/supabaseMock';
 

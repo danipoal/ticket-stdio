@@ -16,6 +16,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - name: Lint (errores rompen el CI; los avisos de dependencias de efectos son deliberados)
+        run: npm run lint -- --quiet
       - run: npm test -- --ci
       - name: Funciones de Supabase (tipos y sintaxis con Deno)
         run: python3 supabase/apply-billing.py --dry-run

@@ -19,7 +19,7 @@ export default function Reset() {
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { control, handleSubmit, getValues, formState: { errors } } = useForm({ defaultValues: { password: "", confirm: "" } });
+  const { control, handleSubmit, formState: { errors } } = useForm({ defaultValues: { password: "", confirm: "" } });
 
   useEffect(() => {
     let active = true;

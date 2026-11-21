@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { StyleSheet, Text, View, Pressable } from "react-native"
 import { useRouter } from "expo-router"
-import { Euro, FileText, CheckCircle2, Hourglass, ListOrdered, TrendingUp, TrendingDown } from "lucide-react-native"
+import { Euro, FileText, CheckCircle2, Hourglass, TrendingUp, TrendingDown } from "lucide-react-native"
 import { supabase } from "@/utils/supabase"
 import useAuth from "@/context/useAuth"
 import useAux from "@/context/useAux"
