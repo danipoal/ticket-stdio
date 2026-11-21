@@ -1,9 +1,6 @@
 import React from "react";
-import { Box, VStack, Heading, Text, Pressable, HStack, Icon } from "@gluestack-ui/themed";
 import { ExpenseSheet } from "@/constants/types";
-import { SheetStatusID } from "@/constants/constants";
-import { Trash2 } from "lucide-react-native";
-import { formatAmount, formatDateSafe } from "@/utils/format";
+import SheetListItem from "./SheetListItem";
 
 type SheetCardProps = {
 	sheet: ExpenseSheet;
@@ -12,63 +9,10 @@ type SheetCardProps = {
 	onDelete?: (sheet: ExpenseSheet) => void;
 };
 
+/**
+ * Tarjeta de hoja en la lista de movil. Usa el mismo diseno que la lista de escritorio (barra de color por estado,
+ * importe destacado, iconos): antes eran tarjetas de color solido verde/rojo con texto plano.
+ */
 export default function SheetCard({ sheet, onPress, onDelete }: SheetCardProps) {
-	const bgColor =
-		sheet.status?.id == SheetStatusID.APROBADO
-			? "$green400"
-			: sheet.status?.id == SheetStatusID.RECHAZADO
-			? "$red400"
-			: "$white";
-
-	return (
-		<Box
-			w="$full"
-			bg={bgColor}
-			p={4}
-			borderRadius="$lg"
-			borderWidth={1}
-			borderColor="$coolGray200"
-			mb={8}
-		>
-			<HStack alignItems="center" justifyContent="space-between" space="md">
-				<Pressable testID="sheet-open" onPress={onPress} accessibilityRole="button" style={{ flex: 1 }}>
-					<VStack space="sm">
-						<Heading size="sm">{sheet.title}</Heading>
-
-						{sheet.description ? (
-							<Text color="$coolGray600">{sheet.description}</Text>
-						) : null}
-
-						<HStack space="xs" alignItems="center">
-							<Text>Proyecto:</Text>
-							<Text fontWeight="$bold">{sheet.project}</Text>
-						</HStack>
-
-						<HStack space="xs" alignItems="center">
-							<Text>Total:</Text>
-							<Text fontWeight="$bold">{formatAmount(sheet.total_amount)} €</Text>
-						</HStack>
-
-						<HStack space="xs" alignItems="center">
-							<Text fontSize="$sm" color="$coolGray500">Creado:</Text>
-							<Text fontSize="$sm" color="$coolGray500">{formatDateSafe(sheet.create_date)}</Text>
-						</HStack>
-					</VStack>
-				</Pressable>
-
-				{onDelete ? (
-				<Pressable
-					testID="sheet-delete"
-					onPress={() => onDelete?.(sheet)}
-					accessibilityLabel="Eliminar hoja"
-					accessibilityRole="button"
-					hitSlop={10}
-				>
-					<Icon as={Trash2} size="lg" color="$coolGray700" />
-				</Pressable>
-				) : null}
-			</HStack>
-		</Box>
-	);
+	return <SheetListItem sheet={sheet} onPress={onPress} onDelete={onDelete} />;
 }
-

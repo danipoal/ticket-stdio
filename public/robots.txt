@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /$
+Allow: /landing/
+Disallow: /auth/
+Disallow: /home
+Disallow: /tickets
+Disallow: /approvals
+Disallow: /settings
+Disallow: /subscription
+Disallow: /user
+
+Sitemap: https://ticket.danipoal.com/sitemap.xml

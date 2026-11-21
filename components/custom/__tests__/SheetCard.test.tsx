@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { mount, press, text } from '../../../test-utils/render';
 import SheetCard from '../SheetCard';
+import { palette } from '@/constants/theme';
 
 const base: any = {
   id: 1, title: 'Viaje', description: 'Reunión', project: 'Alfa', total_amount: '1234.5',
@@ -44,15 +45,21 @@ describe('SheetCard', () => {
     expect(onDelete).toHaveBeenCalledWith(base);
   });
 
-  it('colores por estado: aprobado verde, rechazado rojo, pendiente blanco', async () => {
-    const color = async (id: number) => {
+  it('barra de color por estado: aprobado verde, rechazado rojo, pendiente ambar (mismo diseno que escritorio)', async () => {
+    const accent = async (id: number) => {
       const r = await mount(<SheetCard sheet={{ ...base, status: { id, name: 'x' } }} />);
-      const box = r.root.findAll((n) => n.props.bg !== undefined)[0];
-      return box.props.bg;
+      const bar = r.root.findAll((n: any) => typeof n.type === 'string' && JSON.stringify(n.props.style ?? '').includes('"width":4'))[0];
+      return JSON.stringify(bar.props.style);
     };
-    expect(await color(2)).toBe('$green400');
-    expect(await color(3)).toBe('$red400');
-    expect(await color(1)).toBe('$white');
+    expect(await accent(2)).toContain(palette.success);
+    expect(await accent(3)).toContain(palette.danger);
+    expect(await accent(1)).toContain(palette.warning);
+  });
+
+  it('muestra la referencia y el proyecto con iconos; sin proyecto dice "Sin proyecto"', async () => {
+    const r = await mount(<SheetCard sheet={{ ...base, reference: 'HG-000007', project: '' }} />);
+    expect(text(r.root)).toContain('HG-000007');
+    expect(text(r.root)).toContain('Sin proyecto');
   });
 
   it('REGRESION: sin onDelete no hay papelera (hojas aprobadas)', async () => {

@@ -140,6 +140,14 @@ const bad = (errors) => errors.filter((e) => !/favicon|Failed to load resource/i
   {
     await setBilling('free');
     const { page, ctx, errors } = await session(browser, { email: 'admin@demo.test', width: 1440, height: 900 });
+    // Landing con sesion iniciada: los botones llevan al panel en vez de a registrarse
+    await page.goto(BASE + '/', { waitUntil: 'networkidle0' });
+    await wait(500);
+    check('landing con sesion: se ve "Ir a mi panel" y no "Empezar gratis"',
+      await page.$eval('a[href="/home"].btn-lg', (el) => el.offsetParent !== null) && await page.$eval('a[href="/auth/signin"].btn-lg', (el) => el.offsetParent === null));
+    await page.click('a[href="/home"].btn-lg');
+    await page.waitForFunction(() => location.pathname.endsWith('/home'), { timeout: 15000 }).catch(() => {});
+    check('landing con sesion: "Ir a mi panel" abre la app', page.url().endsWith('/home') && (await has(page, 'sidebar')), page.url());
     check('suscripcion: la administracion ve la pestaña', await has(page, 'nav-subscription'));
     await (await page.$('[data-testid="nav-subscription"]')).click();
     await page.waitForSelector('[data-testid="plan-card"]', { timeout: 15000 });
